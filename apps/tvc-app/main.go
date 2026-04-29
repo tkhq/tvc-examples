@@ -17,9 +17,11 @@ type screenRequest struct {
 
 // screenResponse is returned by POST /screen.
 type screenResponse struct {
-	Address         string           `json:"address"`
-	Sanctioned      bool             `json:"sanctioned"`
-	Identifications []Identification `json:"identifications"`
+	Address          string           `json:"address"`
+	Sanctioned       bool             `json:"sanctioned"`
+	Identifications  []Identification `json:"identifications"`
+	AppProof         *AppProof        `json:"appProof"`
+	BootEphemeralKey string           `json:"bootEphemeralKey,omitempty"`
 }
 
 func main() {
@@ -31,8 +33,26 @@ func main() {
 		log.Fatal("chainalysis-api-key is required (flag or CHAINALYSIS_API_KEY env var)")
 	}
 
-	chainalysis := NewChainalysisClient(*apiKey)
+	signingKey, masterSeed, err := loadEphemeralSigningKey()
+	if err != nil {
+		log.Printf("WARNING: could not load ephemeral signing key: %v — app proofs will be omitted", err)
+	} else if signingKey == nil {
+		log.Printf("WARNING: ephemeral key file not found — app proofs will be omitted (expected outside enclave)")
+	} else {
+		log.Printf("ephemeral signing key loaded")
+	}
 
+	var bootEphemeralKey string
+	if masterSeed != nil {
+		bootEphemeralKey, err = buildBootEphemeralKey(masterSeed)
+		if err != nil {
+			log.Printf("WARNING: could not build boot ephemeral key: %v", err)
+		} else {
+			log.Printf("boot ephemeral key built (%d chars)", len(bootEphemeralKey))
+		}
+	}
+
+	chainalysis := NewChainalysisClient(*apiKey)
 	mux := http.NewServeMux()
 
 	// Health check — required by TVC (GET /health → 200).
@@ -63,13 +83,23 @@ func main() {
 			return
 		}
 
-		resp := screenResponse{
-			Address:         req.Address,
-			Sanctioned:      len(result.Identifications) > 0,
-			Identifications: result.Identifications,
+		sanctioned := len(result.Identifications) > 0
+		identifications := result.Identifications
+		if identifications == nil {
+			identifications = []Identification{}
 		}
-		if resp.Identifications == nil {
-			resp.Identifications = []Identification{}
+
+		appProof, err := signScreening(signingKey, req.Address, sanctioned, identifications)
+		if err != nil {
+			log.Printf("WARNING: could not sign screening result: %v", err)
+		}
+
+		resp := screenResponse{
+			Address:          req.Address,
+			Sanctioned:       sanctioned,
+			Identifications:  identifications,
+			AppProof:         appProof,
+			BootEphemeralKey: bootEphemeralKey,
 		}
 
 		w.Header().Set("Content-Type", "application/json")

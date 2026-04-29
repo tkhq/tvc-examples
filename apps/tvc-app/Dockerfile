@@ -1,5 +1,5 @@
 # ── Build stage ────────────────────────────────────────────────────────────────
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # ca-certificates are needed for HTTPS egress (Chainalysis API call).
 RUN apk add --no-cache ca-certificates
