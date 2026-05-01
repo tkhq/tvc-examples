@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "db:push": "drizzle-kit push",
+    "db:reset": "rm -f local.db && drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
