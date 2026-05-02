@@ -1,13 +1,33 @@
 "use client";
 
+import { useEffect } from "react";
 import { useTurnkey, AuthState } from "@turnkey/react-wallet-kit";
 import Header from "@/components/Header";
-import ScreeningTool from "@/components/ScreeningTool";
+import LoginButton from "@/components/LoginButton";
+import SendETH from "@/components/SendETH";
+import ScreeningHistory from "@/components/ScreeningHistory";
+import Link from "next/link";
 
 export default function Home() {
-  const { authState, handleLogin } = useTurnkey();
+  const { authState, createWallet, refreshWallets } = useTurnkey();
 
-  // Show login prompt until Turnkey confirms authentication.
+  useEffect(() => {
+    if (authState !== AuthState.Authenticated) return;
+
+    async function ensureWallet() {
+      const current = await refreshWallets();
+      if (current.length > 0) return;
+      await createWallet({
+        walletName: "Default",
+        accounts: ["ADDRESS_FORMAT_ETHEREUM"],
+      });
+      await refreshWallets();
+    }
+
+    ensureWallet().catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authState]);
+
   if (authState !== AuthState.Authenticated) {
     return (
       <main className="min-h-screen flex items-center justify-center px-4">
@@ -29,21 +49,20 @@ export default function Home() {
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">TVC Sanctions Screener</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              TVC Sanctions Screener
+            </h1>
             <p className="text-muted text-sm">
               Verifiable compliance powered by{" "}
-              <span className="text-gray-300">Turnkey Verifiable Cloud</span>
+              <span className="text-gray-300"><Link href="https://docs.turnkey.com/getting-started/verifiable-cloud-quickstart#turnkey-verifiable-cloud-quickstart" target="_blank" rel="noopener noreferrer">Turnkey Verifiable Cloud</Link></span>
             </p>
           </div>
 
           <div className="card space-y-4">
             <p className="text-sm text-muted">
-              Sign in to screen crypto addresses against OFAC sanctions lists.
-              Every result is cryptographically attested by a Nitro Enclave.
+              Sign in to start sending complaint transactions right now!
             </p>
-            <button onClick={() => handleLogin()} className="btn-primary w-full">
-              Log in / Sign up
-            </button>
+            <LoginButton />
           </div>
         </div>
       </main>
@@ -54,7 +73,8 @@ export default function Home() {
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-10 space-y-8">
-        <ScreeningTool />
+        <SendETH />
+        <ScreeningHistory />
       </main>
     </div>
   );

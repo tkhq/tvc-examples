@@ -5,35 +5,40 @@ export interface Identification {
   url: string | null;
 }
 
+export interface AppProof {
+  scheme: string;
+  publicKey: string;
+  proofPayload: string;
+  signature: string;
+}
+
+export interface BootProof {
+  ephemeralPublicKeyHex: string;
+  awsAttestationDocB64: string;
+  qosManifestB64: string;
+  qosManifestEnvelopeB64: string;
+  deploymentLabel: string;
+  enclaveApp: string;
+  owner: string;
+  createdAt: { seconds: string; nanos: string };
+}
+
 export interface ScreeningResult {
   address: string;
-  sanctioned: boolean;
+  isSanctioned: boolean;
   identifications: Identification[];
-}
-
-export interface BootProofSummary {
-  deploymentLabel: string | null;
-  enclaveApp: string | null;
-  checkedAt: string;
-}
-
-export interface ScreenResponse extends ScreeningResult {
-  proof: BootProofSummary | null;
+  appProof: AppProof | null;
+  bootEphemeralKey: string | null;
 }
 
 // screenAddress calls the TVC app's POST /screen endpoint.
-// This runs inside the Nitro enclave — the result is covered by the boot proof.
 export async function screenAddress(address: string): Promise<ScreeningResult> {
   const tvcUrl = process.env.TVC_APP_URL;
-  if (!tvcUrl) {
-    throw new Error("TVC_APP_URL is not configured");
-  }
 
   const res = await fetch(`${tvcUrl}/screen`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ address }),
-    // Next.js: don't cache sanctions results
     cache: "no-store",
   });
 
@@ -42,5 +47,22 @@ export async function screenAddress(address: string): Promise<ScreeningResult> {
     throw new Error(`TVC app error ${res.status}: ${text}`);
   }
 
-  return res.json();
+  const data = await res.json();
+
+  const appProof = data.appProof
+    ? {
+      scheme: data.appProof.scheme,
+      publicKey: data.appProof.publicKey,
+      proofPayload: data.appProof.proofPayload,
+      signature: data.appProof.signature,
+    }
+    : null;
+
+  return {
+    address: data.address,
+    isSanctioned: data.sanctioned,
+    identifications: data.identifications,
+    appProof,
+    bootEphemeralKey: data.bootEphemeralKey ?? null,
+  };
 }

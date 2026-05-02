@@ -1,47 +1,71 @@
-import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
-// One row per (user, wallet address) pair. orgId is the Turnkey sub-org ID
-// and userId is the Turnkey user ID — together they identify the authenticated user.
-export const userWallets = sqliteTable(
-  "user_wallets",
-  {
-    id: text("id").primaryKey(),
-    orgId: text("org_id").notNull(),
-    userId: text("user_id").notNull(),
-    address: text("address").notNull(),
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`(datetime('now'))`),
-  },
-  (table) => ({
-    orgAddressUniq: uniqueIndex("user_wallets_org_address_uniq").on(
-      table.orgId,
-      table.address
-    ),
-  })
-);
-
-// One row per address screening. userWalletId links back to the user wallet
-// that initiated the check. destinationAddress is the address being screened,
-// kept denormalized for simple audit log queries without joins.
-export const screenings = sqliteTable("screenings", {
+export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
-  userWalletId: text("user_wallet_id")
+  turnkeyUserId: text("turnkey_user_id").notNull().unique(),
+  turnkeySubOrgId: text("turnkey_sub_org_id").notNull().unique(),
+  turnkeyWalletId: text("turnkey_wallet_id").notNull().unique(),
+  walletAddress: text("wallet_address").notNull().unique(),
+  createdAt: text("created_at")
     .notNull()
-    .references(() => userWallets.id),
-  destinationAddress: text("destination_address").notNull(),
-  sanctioned: integer("sanctioned", { mode: "boolean" }).notNull(),
-  // JSON: Identification[]
-  identifications: text("identifications").notNull(),
-  // JSON: BootProofSummary | null — TVC attestation at time of check
-  bootProof: text("boot_proof"),
+    .default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+export const transactions = sqliteTable("transactions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  fromAddress: text("from_address").notNull(),
+  toAddress: text("to_address").notNull(),
+  valueWei: text("value_wei").notNull(),
+  data: text("data").notNull().default("0x"),
+  chainId: integer("chain_id").notNull(),
+  txHash: text("tx_hash"),
+  status: text("status", {
+    enum: ["pending", "submitted", "confirmed", "blocked"],
+  })
+    .notNull()
+    .default("pending"),
+  submittedAt: text("submitted_at"),
+  confirmedAt: text("confirmed_at"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
 });
 
-export type UserWallet = typeof userWallets.$inferSelect;
-export type NewUserWallet = typeof userWallets.$inferInsert;
+export const screenings = sqliteTable("screenings", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  transactionId: text("transaction_id")
+    .notNull()
+    .references(() => transactions.id),
+  address: text("address").notNull(),
+  isSanctioned: integer("is_sanctioned", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  // JSON: Array of { category, name, description, url }
+  identifications: text("identifications").notNull(),
+  proofScheme: text("proof_scheme"),
+  proofPublicKey: text("proof_public_key"),
+  proofPayload: text("proof_payload"),
+  proofSignature: text("proof_signature"),
+  bootProof: text("boot_proof"),
+  outcome: text("outcome", { enum: ["allowed", "blocked"] }).notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Transaction = typeof transactions.$inferSelect;
+export type NewTransaction = typeof transactions.$inferInsert;
 export type Screening = typeof screenings.$inferSelect;
 export type NewScreening = typeof screenings.$inferInsert;
