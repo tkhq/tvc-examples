@@ -10,8 +10,6 @@ const turnkeyConfig: TurnkeyProviderConfig = {
   authProxyConfigId: process.env.NEXT_PUBLIC_AUTH_PROXY_CONFIG_ID!,
 };
 
-console.log("🆔:", process.env.NEXT_PUBLIC_AUTH_PROXY_CONFIG_ID!)
-
 export function Providers({ children }: { children: ReactNode }) {
   return <TurnkeyProvider config={turnkeyConfig}>{children}</TurnkeyProvider>;
 }
