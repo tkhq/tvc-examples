@@ -1,6 +1,6 @@
 # TVC Sanctions Screener
 
-Verifiable on-chain sanctions screening powered by [Turnkey Verifiable Cloud](https://docs.turnkey.com/getting-started/verifiable-cloud-quickstart) and [Chainalysis](https://www.chainalysis.com/). Users authenticate with a passkey, submit any crypto address for OFAC screening, and receive a result alongside a cryptographic **boot proof** — evidence that the check ran inside a real AWS Nitro Enclave running the exact binary you deployed.
+Verifiable on-chain sanctions screening powered by [Turnkey Verifiable Cloud](https://docs.turnkey.com/getting-started/verifiable-cloud-quickstart) and [Chainalysis](https://www.chainalysis.com/). Users authenticate with a passkey, submit any crypto address for OFAC screening, and receive a result alongside a cryptographic **app proof** and **boot proof** — evidence that the check ran inside a real AWS Nitro Enclave running the exact binary you deployed, signed by a key that never left the enclave.
 
 ---
 
@@ -9,10 +9,12 @@ Verifiable on-chain sanctions screening powered by [Turnkey Verifiable Cloud](ht
 A full-stack sanctions screening tool where:
 
 1. Users log in with a **passkey** via the Turnkey UI modal (no passwords, no email codes)
-2. Users submit any crypto address for OFAC sanctions screening
+2. Users submit a destination address and ETH amount for OFAC sanctions screening before sending
 3. The check runs inside an **AWS Nitro Enclave** via **Turnkey Verifiable Cloud (TVC)**
-4. Every result is returned with a **boot proof** — a cryptographic attestation that the exact expected binary ran in a real enclave
-5. Every check is persisted to a **SQLite audit log** alongside the boot proof
+4. Every result is returned with:
+   - An **app proof** — a P-256 signature by the enclave's ephemeral key over the screening result, verifiable in-browser
+   - A **boot proof** — a cryptographic attestation from Turnkey confirming the enclave identity and the exact binary that ran
+5. Every check is persisted to a **SQLite audit log** alongside both proofs
 
 ```
 User (browser)
@@ -22,7 +24,7 @@ Next.js frontend (auth + UI)
   │  POST /api/screen
   ▼
 Next.js API route
-  │  POST /screen              │  getLatestBootProof
+  │  POST /screen              │  get_boot_proof (by ephemeral key)
   ▼                            ▼
 TVC Go App             Turnkey API
 (Nitro Enclave)        (boot proof)
@@ -39,11 +41,12 @@ Chainalysis Sanctions API
 tvc-chainalysis/
 ├── apps/
 │   ├── tvc-app/          # Go pivot binary — runs inside the enclave
-│   │   ├── main.go
-│   │   ├── chainalysis.go
+│   │   ├── main.go           # HTTP server: GET /health, POST /screen
+│   │   ├── chainalysis.go    # Chainalysis Sanctions API client + mocked addresses
+│   │   ├── proof.go          # Ephemeral key loading, app proof signing, boot key derivation
 │   │   ├── go.mod
 │   │   └── Dockerfile
-│   └── web/              # Next.js 16 — frontend + API routes
+│   └── web/              # Next.js — frontend + API routes
 │       ├── app/
 │       │   ├── page.tsx              # Main page: login prompt or screening tool
 │       │   ├── providers.tsx         # TurnkeyProvider wrapper
@@ -51,10 +54,13 @@ tvc-chainalysis/
 │       │       └── screen/           # POST: screen address, GET: history
 │       ├── components/
 │       │   ├── Header.tsx
-│       │   ├── ScreeningTool.tsx
+│       │   ├── LoginButton.tsx
+│       │   ├── SendETH.tsx
+│       │   ├── ScreeningHistory.tsx
+│       │   ├── ScreenedTransaction.tsx
 │       │   └── ProofBadge.tsx
 │       ├── db/
-│       │   ├── schema.ts             # Drizzle schema (screenings only)
+│       │   ├── schema.ts             # Drizzle schema (users, transactions, screenings)
 │       │   └── index.ts              # SQLite connection
 │       └── lib/
 │           ├── turnkey.ts            # Turnkey server client singleton
@@ -65,7 +71,7 @@ tvc-chainalysis/
 
 ## Prerequisites
 
-- **Go 1.22+** — `brew install go`
+- **Go 1.25+** — `brew install go`
 - **Node.js 18+** — `brew install node`
 - **pnpm** — `npm install -g pnpm`
 - **Rust** — `curl https://sh.rustup.rs -sSf | sh` (needed for the `tvc` CLI)
@@ -126,7 +132,7 @@ The Auth Proxy lets the frontend call Turnkey without exposing your parent org's
 ```bash
 cd apps/web
 pnpm install
-pnpm db:push   # creates local.db with the screenings table
+pnpm db:push   # creates local.db with the users, transactions, and screenings tables
 pnpm dev
 ```
 
@@ -159,12 +165,26 @@ CHAINALYSIS_API_KEY=your-key ./tvc_app --port 3000
 curl http://localhost:3000/health
 # → {"status":"ok"}
 
-# Screen a known sanctioned address
+# Screen a known sanctioned address (mocked — see note on egress below)
 curl -X POST http://localhost:3000/screen \
   -H "Content-Type: application/json" \
   -d '{"address":"0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a"}'
-# → {"address":"0x1da5...","sanctioned":true,"identifications":[...]}
+# → {"address":"0x1da5...","sanctioned":true,"identifications":[...],"appProof":null,"bootEphemeralKey":""}
+# (appProof and bootEphemeralKey are null/empty outside an enclave — no ephemeral key file)
 ```
+
+### Note on egress
+
+TVC external connectivity (`externalConnectivity: true`) is not yet fully supported. The Chainalysis API call logic is in place in `chainalysis.go` in anticipation of the feature release.
+
+In the meantime, `CheckAddress` short-circuits to hardcoded responses for two demo addresses before attempting any network call:
+
+| Address | Result |
+|---|---|
+| `0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a` | Sanctioned (OFAC SDN — Secondeye Solution) |
+| `0xffc93b73e5f9fa038598b675ed394faed168688b` | Clean |
+
+Any other address will attempt the real Chainalysis API call (which will fail inside the enclave until egress is enabled).
 
 ---
 
@@ -247,8 +267,6 @@ tvc app init --output app.json
 tvc app create app.json
 ```
 
-> **Note on egress:** `externalConnectivity` is not yet supported in TVC, so this demo implements a mock Chainalysis call inside the enclave.
-
 ---
 
 ## Step 7 — Create and approve the TVC deployment
@@ -324,7 +342,7 @@ curl https://app-<YOUR_APP_UUID>.turnkey.cloud/health
 # → {"status":"ok"}
 ```
 
-Restart the Next.js dev server and try screening an address. The boot proof should now appear on every result.
+Restart the Next.js dev server and try screening one of the two demo addresses. The app proof and boot proof should now appear on every result.
 
 ---
 
@@ -339,49 +357,82 @@ In the Vercel dashboard, add all the env vars from `.env.local` (the `NEXT_PUBLI
 
 ---
 
-## How the boot proof works
+## How the proofs work
 
 When you screen an address:
 
-1. The Next.js API calls `POST /screen` on the TVC app running in the enclave
-2. The enclave calls the Chainalysis API and returns the result
-3. The Next.js API separately calls Turnkey's `getLatestBootProof` endpoint
-4. Turnkey returns a boot proof containing:
-   - `awsAttestationDocB64` — the AWS Nitro attestation document (signed by AWS)
-   - `qosManifestB64` — the QOS manifest (includes the binary hash baked into the deployment)
-5. Together, these prove: "a real AWS Nitro Enclave was running the exact binary you deployed"
-6. The proof is stored in the SQLite `screenings` table alongside the result
+1. The Next.js API calls `POST /screen` on the TVC Go app running in the enclave
+2. The enclave checks the address (mocked or via Chainalysis) and **signs the result** with its ephemeral P-256 private key — a key derived from the QOS master seed that never leaves the enclave
+3. The response includes:
+   - `appProof` — scheme, public key, the signed JSON payload, and the signature
+   - `bootEphemeralKey` — the 130-byte QOS KeySet (encrypt pubkey + sign pubkey) derived from the same master seed
+4. The Next.js API calls Turnkey's `get_boot_proof` using `bootEphemeralKey` to fetch the boot proof for the exact replica that handled the request
+5. Both proofs are stored in the SQLite `screenings` table
 
-Anyone can independently verify the proof by:
-1. Decoding `awsAttestationDocB64` — verifies it's a real Nitro Enclave and extracts PCR values
-2. Decoding `qosManifestB64` — verifies the PCR values match the QOS version + your binary hash
+### App proof verification (in-browser)
+
+`ProofBadge` uses the Web Crypto API to verify the app proof client-side:
+
+1. Import `appProof.publicKey` (the enclave's P-256 signing key) as an ECDSA verify key
+2. Convert `appProof.signature` from ASN.1 DER to raw `r||s` (Web Crypto requires this format)
+3. Verify the signature over `appProof.proofPayload` (the raw JSON string) with SHA-256
+
+If valid, the result hasn't been tampered with in transit.
+
+### Boot proof verification
+
+The boot proof links the app proof signing key back to a real enclave:
+
+1. `bootProof.ephemeralPublicKeyHex` ends with `appProof.publicKey` — they share the same QOS master seed
+2. `bootProof.awsAttestationDocB64` is a COSE Sign1 document signed by AWS, containing PCR measurements that identify the specific Nitro Enclave and Turnkey's AWS account
+3. `bootProof.qosManifestB64` contains the binary hash of the deployed `tvc_app` — compare against the SHA256 from Step 5 to confirm the expected binary ran
 
 ---
 
 ## Database schema
 
 ```sql
--- One row per (user, wallet address) pair.
--- org_id + user_id are the Turnkey sub-org and user IDs from the session.
-CREATE TABLE user_wallets (
+-- One row per authenticated Turnkey user (sub-org).
+CREATE TABLE users (
   id TEXT PRIMARY KEY,
-  org_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  address TEXT NOT NULL,
+  turnkey_user_id TEXT NOT NULL UNIQUE,
+  turnkey_sub_org_id TEXT NOT NULL UNIQUE,
+  turnkey_wallet_id TEXT NOT NULL UNIQUE,
+  wallet_address TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE (org_id, address)
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Full audit log of every screening.
--- user_wallet_id links back to the user wallet that initiated the check.
--- destination_address is denormalized for simple queries without joins.
+-- One row per transaction intent (created before screening, updated after).
+CREATE TABLE transactions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  from_address TEXT NOT NULL,
+  to_address TEXT NOT NULL,
+  value_wei TEXT NOT NULL,
+  data TEXT NOT NULL DEFAULT '0x',
+  chain_id INTEGER NOT NULL,
+  tx_hash TEXT,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | submitted | confirmed | blocked
+  submitted_at TEXT,
+  confirmed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Full audit log of every sanctions screening.
 CREATE TABLE screenings (
   id TEXT PRIMARY KEY,
-  user_wallet_id TEXT NOT NULL REFERENCES user_wallets(id),
-  destination_address TEXT NOT NULL,
-  sanctioned INTEGER NOT NULL,    -- boolean
-  identifications TEXT NOT NULL,  -- JSON array
-  boot_proof TEXT,                -- JSON object (null if proof fetch failed)
+  user_id TEXT NOT NULL REFERENCES users(id),
+  transaction_id TEXT NOT NULL REFERENCES transactions(id),
+  address TEXT NOT NULL,
+  is_sanctioned INTEGER NOT NULL DEFAULT 0,
+  identifications TEXT NOT NULL,   -- JSON array
+  proof_scheme TEXT,
+  proof_public_key TEXT,
+  proof_payload TEXT,
+  proof_signature TEXT,
+  boot_proof TEXT,                 -- JSON object (null if proof fetch failed)
+  outcome TEXT NOT NULL,           -- allowed | blocked
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```
