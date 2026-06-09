@@ -6,7 +6,7 @@ import { Turnkey } from "@turnkey/sdk-server";
 //   - Initiating email auth activities
 //   - Fetching boot proofs from the TVC app
 export const turnkey = new Turnkey({
-  apiBaseUrl: "https://api.turnkey.com",
+  apiBaseUrl: process.env.TURNKEY_API_BASE_URL!,
   apiPublicKey: process.env.TURNKEY_API_PUBLIC_KEY!,
   apiPrivateKey: process.env.TURNKEY_API_PRIVATE_KEY!,
   defaultOrganizationId: process.env.TURNKEY_ORG_ID!,
