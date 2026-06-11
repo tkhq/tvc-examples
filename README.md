@@ -4,6 +4,27 @@ Verifiable on-chain sanctions screening powered by [Turnkey Verifiable Cloud](ht
 
 ---
 
+## Table of contents
+
+- [What you'll build](#what-youll-build)
+- [Project structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Step 1 — Clone and configure environment](#step-1--clone-and-configure-environment)
+- [Step 2 — Set up the Turnkey Auth Proxy](#step-2--set-up-the-turnkey-auth-proxy)
+- [Step 3 — Install and run the Next.js app locally](#step-3--install-and-run-the-nextjs-app-locally-no-tvc-yet)
+- [Step 4 — Build and test the Go TVC app locally](#step-4--build-and-test-the-go-tvc-app-locally)
+- [Step 5 — Build and push the Docker image to GHCR](#step-5--build-and-push-the-docker-image-to-ghcr)
+- [Step 6 — Create the TVC app](#step-6--create-the-tvc-app)
+- [Step 7 — Create and approve the TVC deployment](#step-7--create-and-approve-the-tvc-deployment)
+- [Step 8 — Wire up the deployed TVC app](#step-8--wire-up-the-deployed-tvc-app)
+- [Step 9 — Deploy the Next.js app (Vercel)](#step-9--deploy-the-nextjs-app-vercel)
+- [How the proofs work](#how-the-proofs-work)
+- [Reproducible builds](#reproducible-builds)
+- [Database schema](#database-schema)
+- [Useful commands](#useful-commands)
+
+---
+
 ## What you'll build
 
 A full-stack sanctions screening tool where:
