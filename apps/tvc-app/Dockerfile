@@ -1,5 +1,7 @@
 # ── Build stage ────────────────────────────────────────────────────────────────
-FROM golang:1.25-alpine AS builder
+# Pin to a specific digest for reproducible builds.
+# To refresh: run `docker pull <new-tag>` then `docker inspect <new-tag> --format='{{index .RepoDigests 0}}'` and update the FROM line below
+FROM golang:1.26.4-alpine@sha256:7a3e50096189ad57c9f9f865e7e4aa8585ed1585248513dc5cda498e2f41812c AS builder
 
 # ca-certificates are needed for HTTPS egress (Chainalysis API call).
 RUN apk add --no-cache ca-certificates
@@ -10,7 +12,7 @@ RUN go mod download
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-w -s" -o /tvc_app .
+    go build -trimpath -ldflags="-w -s" -o /tvc_app .
 
 # ── Runtime stage ───────────────────────────────────────────────────────────────
 # busybox provides /bin/sh which TVC's containerd requires to start the task.
