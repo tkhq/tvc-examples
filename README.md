@@ -71,7 +71,7 @@ tvc-chainalysis/
 
 ## Prerequisites
 
-- **Go 1.25+** — `brew install go`
+- **Go 1.26+** — `brew install go`
 - **Node.js 18+** — `brew install node`
 - **pnpm** — `npm install -g pnpm`
 - **Rust** — `curl https://sh.rustup.rs -sSf | sh` (needed for the `tvc` CLI)
@@ -386,6 +386,37 @@ The boot proof links the app proof signing key back to a real enclave:
 1. `bootProof.ephemeralPublicKeyHex` ends with `appProof.publicKey` — they share the same QOS master seed
 2. `bootProof.awsAttestationDocB64` is a COSE Sign1 document signed by AWS, containing PCR measurements that identify the specific Nitro Enclave and Turnkey's AWS account
 3. `bootProof.qosManifestB64` contains the binary hash of the deployed `tvc_app` — compare against the SHA256 from Step 5 to confirm the expected binary ran
+
+---
+
+## Reproducible builds
+
+The `tvc-app` binary is built deterministically so that anyone can verify the published image digest matches the source code.
+
+### Why it matters
+
+A TVC app runs inside a Turnkey enclave. The enclave is bootstrapped from a container image whose digest is committed to the TVC deployment configuration. If the binary changes between builds, even from identical source, the digest won't match and the enclave attestation fails. Pinning every input to the build eliminates that class of drift and ensures builds are reproducible.
+
+### What is pinned
+
+| Input | How it's pinned |
+|---|---|
+| Go toolchain | `golang:1.26.4-alpine@sha256:7a3e5009...` in `Dockerfile` |
+| Runtime base | `stagex/core-busybox:1.36.1@sha256:cac5d773...` in `Dockerfile` |
+| Go dependencies | `go.sum` committed in source |
+
+`-trimpath` is also set on the `go build` command to strip local filesystem paths from the binary, ensuring the digest is the same regardless of the build machine.
+
+### Refreshing the toolchain digest
+
+When upgrading Go, update `go.mod` and the `FROM` tag together, then re-pin:
+
+```sh
+docker pull golang:<new-version>-alpine
+docker inspect golang:<new-version>-alpine --format='{{index .RepoDigests 0}}'
+```
+
+Replace the `@sha256:...` in the `Dockerfile` `FROM` line with the new digest.
 
 ---
 
