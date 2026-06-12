@@ -290,12 +290,12 @@ tvc app init --output app.json
 # - Set "name" to "tvc-chainalysis"
 
 # Create the app
-tvc app create app.json
+tvc app create --config-file app.json
 ```
 
 ---
 
-## Step 7 — Create and approve the TVC deployment
+## Step 7 — Create the TVC deployment
 
 ### Option A — Dashboard
 
@@ -309,13 +309,8 @@ tvc app create app.json
    - **Health check type**: `HTTP`
    - **Executable digest**: the SHA256 from Step 5 (digest of the binary, not the image)
 3. Click **Deploy TVC App**
-4. Approve the deployment:
 
-```bash
-tvc deploy approve \
-  --deploy-id <DEPLOYMENT_UUID> \
-  --operator-id <OPERATOR_UUID>
-```
+When the app is deployed you will see it appear as a row in the Deployments table for the app in the Turnkey Dashboard. The `id` column has the deployment ID you will need to copy for step 8.
 
 ### Option B — CLI
 
@@ -334,10 +329,24 @@ tvc deploy init   # generates a deploy template
 # - healthCheckPort: 3000
 # - publicIngressPort: 3000
 
-tvc deploy create --config-file deploy-2026-06-11-175029.json   # filename includes a timestamp generated at init time
+tvc deploy create --config-file deploy-2026-06-11-175029.json   # UPDATE THIS FILENAME TO YOUR GENERATED CONFIG FILE - filename includes a timestamp generated at init time
 ```
 
-Approve the manifest:
+After a successful `deploy create` command you should see a success message and the deployment ID, app ID, and the config file referenced for deployment, similar to the log below:
+
+```bash
+Deployment created successfully!
+
+Deployment ID: 6dd...6b2
+App ID: 189...716
+Config: deploy-2026-06-11-175029.json
+```
+
+## Step 8 — Approve the TVC deployment
+
+Whether you deployed from the Turnkey Dashboard or via CLI this step will be done via the `tvc` CLI.
+
+You will already have the deployment ID from the previous step. To get the Operator ID go to the Turnkey Dashboard and navigate to Verifiable Cloud. Find your app and click through to find the Manifest Approvers section, under which you will find and copy the `Operator ID` to use in the command below: 
 
 ```bash
 tvc deploy approve \
@@ -345,9 +354,53 @@ tvc deploy approve \
   --operator-id <OPERATOR_UUID>
 ```
 
+On success you will be presented with the Manifest Approval.
+
+```bash
+========================================
+         MANIFEST APPROVAL
+========================================
+
+NAMESPACE
+─────────────────────────────────────
+  Name:       prod/tvc/189...716
+  Nonce:      1781274433
+  Quorum Key: 044...83e
+
+> Approve namespace? Yes
+...
+```
+
+On the Turnkey Dashboard find and click through to your app in the Verifiable Cloud section and click on your deployment. There you will find the App Container and QOS Manifest. 
+
+Confirm each by comparing to the QOS Manifest until all sections are approved:
+
+```bash
+...
+========================================
+    ALL SECTIONS APPROVED
+========================================
+
+{
+  "signature": "fb6...148",
+  "member": {
+    "alias": "operator-1",
+    "pubKey": "04c...ad9"
+  }
+}
+
+Posting approval to Turnkey...
+
+Approval posted successfully!
+
+Approval IDs: ["b8e3...ca8"]
+Manifest ID: 3bc...b04
+Operator ID: 030...7a3
+```
+
 ---
 
-## Step 8 — Wire up the deployed TVC app
+## Step 9 — Wire up the deployed TVC app
 
 Once the deployment shows **LIVE** on the dashboard (usually takes 2–5 minutes after approval):
 
@@ -372,7 +425,7 @@ Restart the Next.js dev server and try screening one of the two demo addresses. 
 
 ---
 
-## Step 9 — Deploy the Next.js app (Vercel)
+## Step 10 — Deploy the Next.js app (Vercel)
 
 ```bash
 cd apps/web
