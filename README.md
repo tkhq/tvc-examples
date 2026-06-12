@@ -238,11 +238,16 @@ Make the package public in GitHub → Packages → your image → Package settin
 
 ### Get the image digest (for Container Image URL)
 
-The TVC deployment requires the full image URL with digest:
+TVC requires the single-platform `linux/amd64` digest, not the multi-platform index digest. Use `imagetools inspect` to get the correct one:
 
 ```bash
-docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/YOUR_GITHUB_ORG_OR_USERNAME/tvc-chainalysis:latest
-# → ghcr.io/YOUR_GITHUB_ORG_OR_USERNAME/tvc-chainalysis@sha256:<image-digest>
+docker buildx imagetools inspect ghcr.io/YOUR_GITHUB_ORG_OR_USERNAME/tvc-chainalysis:latest
+```
+
+Look for the manifest with `Platform: linux/amd64` and copy its digest. The URL to use in the deployment manifest is:
+
+```
+ghcr.io/YOUR_GITHUB_ORG_OR_USERNAME/tvc-chainalysis@sha256:<amd64-digest>
 ```
 
 ### Get the pivot binary digest
@@ -329,7 +334,7 @@ tvc deploy init   # generates a deploy template
 # - healthCheckPort: 3000
 # - publicIngressPort: 3000
 
-tvc deploy create deploy.json
+tvc deploy create --config-file deploy-2026-06-11-175029.json   # filename includes a timestamp generated at init time
 ```
 
 Approve the manifest:

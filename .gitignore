@@ -32,5 +32,9 @@ apps/web/local.db-wal
 # Docker
 apps/tvc-app/*.tar
 
+# TVC — generated manifests contain secrets (API keys in pivotArgs)
+apps/tvc-app/deploy-*.json
+apps/tvc-app/app.json
+
 #  Docs
 /docs
