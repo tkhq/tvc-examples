@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTurnkey } from "@turnkey/react-wallet-kit";
 import ProofBadge from "./ProofBadge";
+import { type AppProof, type BootProof } from "@/lib/tvc";
 
 interface Identification {
   category: string | null;
@@ -13,14 +14,10 @@ interface Identification {
 
 interface ScreenResult {
   address: string;
-  sanctioned: boolean;
+  isSanctioned: boolean;
   identifications: Identification[];
-  proof: {
-    deploymentLabel?: string | null;
-    enclaveApp?: string | null;
-    owner?: string | null;
-    checkedAt: string;
-  } | null;
+  appProof: AppProof | null;
+  bootProof: BootProof | null;
 }
 
 interface HistoryItem extends ScreenResult {
@@ -119,25 +116,25 @@ export default function ScreeningTool() {
           {/* Verdict */}
           <div
             className={`card flex items-start gap-4 border ${
-              result.sanctioned
+              result.isSanctioned
                 ? "border-danger/40 bg-danger/5"
                 : "border-success/30 bg-success/5"
             }`}
           >
             <div
               className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-lg ${
-                result.sanctioned ? "bg-danger/20" : "bg-success/20"
+                result.isSanctioned ? "bg-danger/20" : "bg-success/20"
               }`}
             >
-              {result.sanctioned ? "🚫" : "✅"}
+              {result.isSanctioned ? "🚫" : "✅"}
             </div>
             <div>
               <p
                 className={`font-semibold ${
-                  result.sanctioned ? "text-danger" : "text-success"
+                  result.isSanctioned ? "text-danger" : "text-success"
                 }`}
               >
-                {result.sanctioned ? "Sanctioned address" : "No sanctions found"}
+                {result.isSanctioned ? "Sanctioned address" : "No sanctions found"}
               </p>
               <p className="text-xs font-mono text-muted mt-0.5 break-all">
                 {result.address}
@@ -178,7 +175,7 @@ export default function ScreeningTool() {
           )}
 
           {/* Boot proof */}
-          <ProofBadge proof={result.proof} />
+          <ProofBadge appProof={result.appProof} bootProof={result.bootProof} />
         </div>
       )}
 
@@ -211,7 +208,7 @@ export default function ScreeningTool() {
                 <div className="flex items-center gap-3 min-w-0">
                   <span
                     className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      item.sanctioned ? "bg-danger" : "bg-success"
+                      item.isSanctioned ? "bg-danger" : "bg-success"
                     }`}
                   />
                   <span className="text-xs font-mono text-gray-300 truncate">
@@ -219,7 +216,7 @@ export default function ScreeningTool() {
                   </span>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  {item.proof && (
+                  {item.appProof && (
                     <span className="text-xs text-success hidden sm:inline">
                       ✓ attested
                     </span>
