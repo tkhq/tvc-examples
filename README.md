@@ -2,6 +2,8 @@
 
 Verifiable on-chain sanctions screening powered by [Turnkey Verifiable Cloud](https://docs.turnkey.com/getting-started/verifiable-cloud-quickstart) and [Chainalysis](https://www.chainalysis.com/). Users authenticate with a passkey, submit any crypto address for OFAC screening, and receive a result alongside a cryptographic **app proof** and **boot proof** — evidence that the check ran inside a real AWS Nitro Enclave running the exact binary you deployed, signed by a key that never left the enclave.
 
+**Live demo:** https://tvc-chainalysis.up.railway.app/
+
 ---
 
 ## Table of contents
