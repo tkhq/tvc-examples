@@ -3,11 +3,51 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import path from "path";
 
-// SQLite database file lives at apps/web/local.db.
-// Add local.db to .gitignore — it contains address screening records and boot proofs.
 const sqlite = new Database(process.env.DB_PATH ?? path.join(process.cwd(), "local.db"));
 
-// Enable WAL mode for better concurrent read performance.
 sqlite.pragma("journal_mode = WAL");
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    turnkey_user_id TEXT NOT NULL UNIQUE,
+    turnkey_sub_org_id TEXT NOT NULL UNIQUE,
+    turnkey_wallet_id TEXT NOT NULL UNIQUE,
+    wallet_address TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS transactions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    from_address TEXT NOT NULL,
+    to_address TEXT NOT NULL,
+    value_wei TEXT NOT NULL,
+    data TEXT NOT NULL DEFAULT '0x',
+    chain_id INTEGER NOT NULL,
+    tx_hash TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    submitted_at TEXT,
+    confirmed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS screenings (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    transaction_id TEXT NOT NULL REFERENCES transactions(id),
+    address TEXT NOT NULL,
+    is_sanctioned INTEGER NOT NULL DEFAULT 0,
+    identifications TEXT NOT NULL,
+    proof_scheme TEXT,
+    proof_public_key TEXT,
+    proof_payload TEXT,
+    proof_signature TEXT,
+    boot_proof TEXT,
+    outcome TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
 
 export const db = drizzle(sqlite, { schema });
