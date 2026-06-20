@@ -1,0 +1,35 @@
+{
+  "name": "tvc-chainalysis-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:push": "drizzle-kit push",
+    "db:reset": "rm -f local.db && drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@turnkey/react-wallet-kit": "^1.11.1",
+    "@turnkey/sdk-server": "^1.7.3",
+    "better-sqlite3": "^12.9.0",
+    "drizzle-orm": "^0.30.10",
+    "next": "^16.2.3",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.21.4",
+    "eslint": "^9",
+    "eslint-config-next": "^16.0.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

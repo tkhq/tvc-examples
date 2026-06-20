@@ -1,0 +1,40 @@
+# Node
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+
+# Env
+.env.local
+*.env.local
+.env.*.local
+
+# Go binaries
+apps/tvc-app/tvc_app
+apps/tvc-app/tvc_app_*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Database
+apps/web/local.db
+apps/web/local.db-shm
+apps/web/local.db-wal
+
+# Docker
+apps/tvc-app/*.tar
+
+# TVC — generated manifests contain secrets (API keys in pivotArgs)
+apps/tvc-app/deploy-*.json
+apps/tvc-app/app.json
+
+#  Docs
+/docs
