@@ -1,0 +1,9 @@
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# dotenv environment variable files
+.env
+.env.*
+!.env.example
