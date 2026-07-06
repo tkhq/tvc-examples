@@ -4,6 +4,7 @@
 //! Exposes `GET /health` today; `GET /pubkeys` and `POST /cosign` are wired in
 //! as the rules engine and stamping land.
 
+mod activity;
 mod keys;
 mod stamp;
 
