@@ -5,6 +5,7 @@
 //! as the rules engine and stamping land.
 
 mod keys;
+mod stamp;
 
 use axum::{routing::get, Json, Router};
 use serde_json::{json, Value};
