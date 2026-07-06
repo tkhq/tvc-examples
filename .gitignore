@@ -1,0 +1,9 @@
+# Rust build artifacts
+/target
+
+# Local secrets / ruleset overrides (never commit real ones)
+*.local.toml
+.env
+
+# Notes
+/notes
