@@ -12,6 +12,7 @@ mod activity;
 mod config;
 mod keys;
 mod stamp;
+mod tx;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};

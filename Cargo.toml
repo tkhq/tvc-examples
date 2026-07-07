@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+alloy-consensus = "2.1.1"
+alloy-eips = "2.1.1"
+alloy-primitives = { version = "1.6.0", features = ["serde"] }
+alloy-rlp = "0.3.16"
 axum = "0.8.9"
 base64 = "0.22.1"
 hex = "0.4.3"
