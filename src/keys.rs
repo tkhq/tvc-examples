@@ -13,8 +13,8 @@
 use std::path::Path;
 
 use hkdf::Hkdf;
-use p256::ecdsa::SigningKey;
 use p256::SecretKey;
+use p256::ecdsa::SigningKey;
 use sha2::Sha512;
 
 /// Path inside the enclave where QOS writes the hex-encoded 32-byte quorum seed.
@@ -114,7 +114,10 @@ mod tests {
     fn derivation_is_deterministic() {
         let k1 = KeySet::derive(&SEED_A);
         let k2 = KeySet::derive(&SEED_A);
-        assert_eq!(k1.programmatic.public_key_hex(), k2.programmatic.public_key_hex());
+        assert_eq!(
+            k1.programmatic.public_key_hex(),
+            k2.programmatic.public_key_hex()
+        );
         assert_eq!(k1.admin.public_key_hex(), k2.admin.public_key_hex());
     }
 
@@ -128,7 +131,10 @@ mod tests {
     fn different_seeds_give_different_keys() {
         let a = KeySet::derive(&SEED_A);
         let b = KeySet::derive(&SEED_B);
-        assert_ne!(a.programmatic.public_key_hex(), b.programmatic.public_key_hex());
+        assert_ne!(
+            a.programmatic.public_key_hex(),
+            b.programmatic.public_key_hex()
+        );
     }
 
     #[test]

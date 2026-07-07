@@ -12,8 +12,8 @@
 //! against the registered public key.
 
 use base64::Engine;
-use p256::ecdsa::signature::Signer;
 use p256::ecdsa::Signature;
+use p256::ecdsa::signature::Signer;
 use serde::Serialize;
 
 use crate::keys::ApiKey;
@@ -63,8 +63,8 @@ pub fn stamp(key: &ApiKey, body: &str) -> Stamped {
 mod tests {
     use super::*;
     use crate::keys::KeySet;
-    use p256::ecdsa::signature::Verifier;
     use p256::ecdsa::VerifyingKey;
+    use p256::ecdsa::signature::Verifier;
     use serde_json::Value;
 
     const SEED: [u8; 32] = [0x42; 32];
@@ -86,7 +86,7 @@ mod tests {
 
         assert_eq!(env["scheme"], STAMP_SCHEME);
         assert_eq!(env["publicKey"], keys.programmatic.public_key_hex());
-        assert!(env["signature"].as_str().unwrap().len() > 0);
+        assert!(!env["signature"].as_str().unwrap().is_empty());
         assert_eq!(stamped.body, BODY, "body is returned unmodified");
     }
 

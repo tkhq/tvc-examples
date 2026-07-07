@@ -49,7 +49,9 @@ impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ParseError::Empty => write!(f, "empty transaction"),
-            ParseError::UnsupportedType(b) => write!(f, "unsupported transaction type byte {b:#04x}"),
+            ParseError::UnsupportedType(b) => {
+                write!(f, "unsupported transaction type byte {b:#04x}")
+            }
             ParseError::Rlp(e) => write!(f, "malformed RLP: {e}"),
         }
     }
@@ -106,7 +108,7 @@ fn decode_legacy(mut buf: &[u8]) -> Result<ParsedTx, ParseError> {
 mod tests {
     use super::*;
     use alloy_consensus::{SignableTransaction, TxLegacy};
-    use alloy_primitives::{address, TxKind, U256};
+    use alloy_primitives::{TxKind, U256, address};
 
     /// Build `transfer(address,uint256)` calldata.
     fn transfer_calldata(recipient: Address, amount: u64) -> Vec<u8> {
