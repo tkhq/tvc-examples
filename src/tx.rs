@@ -8,9 +8,6 @@
 //!
 //! The rules engine only needs `to`, `value`, and the calldata (for the 4-byte
 //! selector + args), so we decode into that and drop the rest.
-//!
-//! This module is consumed by the rules engine.
-#![allow(dead_code)]
 
 use std::fmt;
 

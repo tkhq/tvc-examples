@@ -1,0 +1,32 @@
+# tvc-cosign ruleset — example.
+#
+# Copy to `rules.toml` (or point TVC_RULES_PATH at it) and fill in real values.
+# In production this file is baked into the reproducible enclave image, so the
+# rules are covered by the image measurement (i.e. attestable).
+#
+# Classification:
+#   PROGRAMMATIC -> stamped with the programmatic key (policy auto-completes)
+#   ADMIN        -> stamped with the admin key (policy requires human consensus)
+#   REJECT       -> not stamped; /cosign returns 400
+
+[programmatic]
+# An ERC-20 transfer(address,uint256) is PROGRAMMATIC only if ALL hold:
+#   - the token contract (the tx `to`) is in allowed_tokens
+#   - the recipient (first arg) is in allowed_recipients
+#   - the amount (second arg) is <= max_amount
+allowed_tokens = [
+  "0x1111111111111111111111111111111111111111", # e.g. USDC
+]
+allowed_recipients = [
+  "0x00000000000000000000000000000000000000ff", # e.g. treasury / settlement address
+]
+# Max transfer amount in the token's base units, as a string (may exceed i64).
+# Example below is 1000 * 10^6 for a 6-decimal token like USDC.
+max_amount = "1000000000"
+
+[admin]
+# Any transaction whose 4-byte selector is listed here -> ADMIN (human consensus).
+# Put privileged operations here (e.g. an "add ticket" / config selector).
+selectors = [
+  "0x12345678",
+]

@@ -11,6 +11,7 @@
 mod activity;
 mod config;
 mod keys;
+mod rules;
 mod stamp;
 mod tx;
 
@@ -26,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use activity::{build_sign_transaction, SignTransaction};
 use config::Config;
 use keys::KeySet;
+use rules::{classify, Classification};
 
 /// Address the enclave listens on. TVC pivots serve plain HTTP inside the
 /// enclave; the host proxies to them.
@@ -86,24 +88,6 @@ async fn pubkeys(State(state): State<Arc<AppState>>) -> Json<PubkeysResponse> {
     })
 }
 
-/// How a transaction is routed. Serialized as `PROGRAMMATIC` / `ADMIN` / `REJECT`.
-/// `Admin`/`Reject` are handled here but only constructed once the rules engine
-/// lands (the placeholder classifier always returns `Programmatic`).
-#[derive(Serialize, Clone, Copy)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[allow(dead_code)]
-enum Classification {
-    Programmatic,
-    Admin,
-    Reject,
-}
-
-/// Placeholder classifier — always routes to the programmatic key. Replaced by
-/// the config-driven rules engine.
-fn classify(_signer_address: &str, _unsigned_transaction: &str) -> Classification {
-    Classification::Programmatic
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CosignRequest {
@@ -125,26 +109,30 @@ struct CosignResponse {
 #[serde(rename_all = "camelCase")]
 struct CosignError {
     error: String,
-    classification: Classification,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    classification: Option<Classification>,
 }
 
-/// Classify an unsigned tx, then build + stamp a `SIGN_TRANSACTION_V2` request.
+/// Parse an unsigned tx, classify it, then build + stamp a `SIGN_TRANSACTION_V2`.
 async fn cosign(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CosignRequest>,
 ) -> Result<Json<CosignResponse>, (StatusCode, Json<CosignError>)> {
-    let classification = classify(&req.signer_address, &req.unsigned_transaction);
+    // Decode + parse the unsigned transaction. A malformed tx is a client error.
+    let raw = decode_hex(&req.unsigned_transaction)
+        .map_err(|e| bad_request(format!("invalid unsignedTransaction hex: {e}"), None))?;
+    let parsed = tx::parse_unsigned(&raw)
+        .map_err(|e| bad_request(format!("could not parse transaction: {e}"), None))?;
+
+    let classification = classify(&parsed, &state.config.ruleset);
 
     let key = match classification {
         Classification::Programmatic => &state.keys.programmatic,
         Classification::Admin => &state.keys.admin,
         Classification::Reject => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(CosignError {
-                    error: "transaction rejected by ruleset".to_string(),
-                    classification,
-                }),
+            return Err(bad_request(
+                "transaction rejected by ruleset".to_string(),
+                Some(Classification::Reject),
             ));
         }
     };
@@ -170,4 +158,24 @@ fn now_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .expect("system clock is after the Unix epoch")
         .as_millis() as u64
+}
+
+/// Hex-decode, tolerating an optional `0x` prefix.
+fn decode_hex(s: &str) -> Result<Vec<u8>, hex::FromHexError> {
+    let s = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")).unwrap_or(s);
+    hex::decode(s)
+}
+
+/// Build a `400` response with an error message and optional classification.
+fn bad_request(
+    error: String,
+    classification: Option<Classification>,
+) -> (StatusCode, Json<CosignError>) {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(CosignError {
+            error,
+            classification,
+        }),
+    )
 }
