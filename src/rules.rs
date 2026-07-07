@@ -26,6 +26,7 @@ pub enum Classification {
 
 /// The active ruleset, in runtime form (typed, deduplicated).
 pub struct Ruleset {
+    allowed_signers: HashSet<Address>,
     allowed_tokens: HashSet<Address>,
     allowed_recipients: HashSet<Address>,
     max_amount: U256,
@@ -37,6 +38,7 @@ impl Ruleset {
     /// present (empty allowlists, zero cap, no admin selectors).
     pub fn deny_all() -> Self {
         Ruleset {
+            allowed_signers: HashSet::new(),
             allowed_tokens: HashSet::new(),
             allowed_recipients: HashSet::new(),
             max_amount: U256::ZERO,
@@ -53,7 +55,15 @@ impl Ruleset {
 }
 
 /// Classify a parsed transaction against the ruleset.
-pub fn classify(tx: &ParsedTx, rules: &Ruleset) -> Classification {
+///
+/// `signer` is the wallet the transaction would be signed by (`signWith`). It is
+/// a global gate: the enclave only stamps for allowlisted wallets, whatever the
+/// classification.
+pub fn classify(signer: Address, tx: &ParsedTx, rules: &Ruleset) -> Classification {
+    if !rules.allowed_signers.contains(&signer) {
+        return Classification::Reject;
+    }
+
     let Some(selector) = tx.selector() else {
         // No calldata (e.g. a native transfer) — out of scope for this POC.
         return Classification::Reject;
@@ -108,6 +118,9 @@ fn decode_transfer_args(input: &[u8]) -> Option<(Address, U256)> {
 
 #[derive(Deserialize)]
 struct RawRuleset {
+    /// Wallets (`signWith` targets) this deployment is permitted to sign for.
+    #[serde(default)]
+    allowed_signers: Vec<Address>,
     programmatic: RawProgrammatic,
     #[serde(default)]
     admin: RawAdmin,
@@ -145,6 +158,7 @@ impl RawRuleset {
             .collect::<Result<HashSet<_>, _>>()?;
 
         Ok(Ruleset {
+            allowed_signers: self.allowed_signers.into_iter().collect(),
             allowed_tokens: self.programmatic.allowed_tokens.into_iter().collect(),
             allowed_recipients: self.programmatic.allowed_recipients.into_iter().collect(),
             max_amount,
@@ -165,13 +179,16 @@ fn parse_selector(s: &str) -> Result<[u8; 4], String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{address, Bytes, U256};
+    use alloy_primitives::{Bytes, U256, address};
 
+    const SIGNER: Address = address!("00000000000000000000000000000000000000a1");
     const TOKEN: Address = address!("1111111111111111111111111111111111111111");
     const RECIPIENT: Address = address!("00000000000000000000000000000000000000ff");
 
     fn ruleset_toml() -> Ruleset {
         let toml = r#"
+            allowed_signers = ["0x00000000000000000000000000000000000000a1"]
+
             [programmatic]
             allowed_tokens = ["0x1111111111111111111111111111111111111111"]
             allowed_recipients = ["0x00000000000000000000000000000000000000ff"]
@@ -199,27 +216,39 @@ mod tests {
     #[test]
     fn allowlisted_transfer_under_cap_is_programmatic() {
         let tx = transfer_tx(TOKEN, RECIPIENT, 500);
-        assert_eq!(classify(&tx, &ruleset_toml()), Classification::Programmatic);
+        assert_eq!(
+            classify(SIGNER, &tx, &ruleset_toml()),
+            Classification::Programmatic
+        );
     }
 
     #[test]
     fn transfer_over_cap_is_rejected() {
         let tx = transfer_tx(TOKEN, RECIPIENT, 5000);
-        assert_eq!(classify(&tx, &ruleset_toml()), Classification::Reject);
+        assert_eq!(
+            classify(SIGNER, &tx, &ruleset_toml()),
+            Classification::Reject
+        );
     }
 
     #[test]
     fn transfer_to_unlisted_recipient_is_rejected() {
         let other = address!("00000000000000000000000000000000000000ee");
         let tx = transfer_tx(TOKEN, other, 100);
-        assert_eq!(classify(&tx, &ruleset_toml()), Classification::Reject);
+        assert_eq!(
+            classify(SIGNER, &tx, &ruleset_toml()),
+            Classification::Reject
+        );
     }
 
     #[test]
     fn transfer_of_unlisted_token_is_rejected() {
         let other = address!("2222222222222222222222222222222222222222");
         let tx = transfer_tx(other, RECIPIENT, 100);
-        assert_eq!(classify(&tx, &ruleset_toml()), Classification::Reject);
+        assert_eq!(
+            classify(SIGNER, &tx, &ruleset_toml()),
+            Classification::Reject
+        );
     }
 
     #[test]
@@ -229,7 +258,10 @@ mod tests {
             value: U256::ZERO,
             input: Bytes::from(vec![0x12, 0x34, 0x56, 0x78]),
         };
-        assert_eq!(classify(&tx, &ruleset_toml()), Classification::Admin);
+        assert_eq!(
+            classify(SIGNER, &tx, &ruleset_toml()),
+            Classification::Admin
+        );
     }
 
     #[test]
@@ -239,7 +271,10 @@ mod tests {
             value: U256::ZERO,
             input: Bytes::from(vec![0xde, 0xad, 0xbe, 0xef]),
         };
-        assert_eq!(classify(&tx, &ruleset_toml()), Classification::Reject);
+        assert_eq!(
+            classify(SIGNER, &tx, &ruleset_toml()),
+            Classification::Reject
+        );
     }
 
     #[test]
@@ -249,19 +284,38 @@ mod tests {
             value: U256::from(1u64),
             input: Bytes::new(),
         };
-        assert_eq!(classify(&tx, &ruleset_toml()), Classification::Reject);
+        assert_eq!(
+            classify(SIGNER, &tx, &ruleset_toml()),
+            Classification::Reject
+        );
     }
 
     #[test]
     fn transfer_with_attached_eth_is_rejected() {
         let mut tx = transfer_tx(TOKEN, RECIPIENT, 100);
         tx.value = U256::from(1u64);
-        assert_eq!(classify(&tx, &ruleset_toml()), Classification::Reject);
+        assert_eq!(
+            classify(SIGNER, &tx, &ruleset_toml()),
+            Classification::Reject
+        );
+    }
+
+    #[test]
+    fn non_allowlisted_signer_is_rejected() {
+        let other_signer = address!("00000000000000000000000000000000000000b2");
+        let tx = transfer_tx(TOKEN, RECIPIENT, 500); // otherwise valid
+        assert_eq!(
+            classify(other_signer, &tx, &ruleset_toml()),
+            Classification::Reject
+        );
     }
 
     #[test]
     fn deny_all_rejects_everything() {
         let tx = transfer_tx(TOKEN, RECIPIENT, 1);
-        assert_eq!(classify(&tx, &Ruleset::deny_all()), Classification::Reject);
+        assert_eq!(
+            classify(SIGNER, &tx, &Ruleset::deny_all()),
+            Classification::Reject
+        );
     }
 }

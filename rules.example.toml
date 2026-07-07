@@ -9,6 +9,13 @@
 #   ADMIN        -> stamped with the admin key (policy requires human consensus)
 #   REJECT       -> not stamped; /cosign returns 400
 
+# Wallets this deployment may sign for (the `signerAddress` / `signWith` target).
+# A global gate: any transaction whose signer is not listed here is REJECTed,
+# regardless of the rules below.
+allowed_signers = [
+  "0x00000000000000000000000000000000000000a1", # e.g. the company treasury wallet
+]
+
 [programmatic]
 # An ERC-20 transfer(address,uint256) is PROGRAMMATIC only if ALL hold:
 #   - the token contract (the tx `to`) is in allowed_tokens

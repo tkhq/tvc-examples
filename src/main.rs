@@ -18,16 +18,17 @@ mod tx;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use alloy_primitives::Address;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
-use activity::{build_sign_transaction, SignTransaction};
+use activity::{SignTransaction, build_sign_transaction};
 use config::Config;
 use keys::KeySet;
-use rules::{classify, Classification};
+use rules::{Classification, classify};
 
 /// Address the enclave listens on. TVC pivots serve plain HTTP inside the
 /// enclave; the host proxies to them.
@@ -45,8 +46,14 @@ async fn main() {
     // observable in production, so these prints are only a local-dev aid; the
     // pubkeys are exposed over GET /pubkeys for registration.
     let keys = KeySet::load();
-    println!("keys: programmatic pubkey = {}", keys.programmatic.public_key_hex());
-    println!("keys: admin pubkey        = {}", keys.admin.public_key_hex());
+    println!(
+        "keys: programmatic pubkey = {}",
+        keys.programmatic.public_key_hex()
+    );
+    println!(
+        "keys: admin pubkey        = {}",
+        keys.admin.public_key_hex()
+    );
 
     let config = Config::from_env();
     let state = Arc::new(AppState { keys, config });
@@ -124,7 +131,13 @@ async fn cosign(
     let parsed = tx::parse_unsigned(&raw)
         .map_err(|e| bad_request(format!("could not parse transaction: {e}"), None))?;
 
-    let classification = classify(&parsed, &state.config.ruleset);
+    // The wallet to sign with is a global gate — it must be an allowlisted signer.
+    let signer = req
+        .signer_address
+        .parse::<Address>()
+        .map_err(|e| bad_request(format!("invalid signerAddress: {e}"), None))?;
+
+    let classification = classify(signer, &parsed, &state.config.ruleset);
 
     let key = match classification {
         Classification::Programmatic => &state.keys.programmatic,
@@ -162,7 +175,10 @@ fn now_ms() -> u64 {
 
 /// Hex-decode, tolerating an optional `0x` prefix.
 fn decode_hex(s: &str) -> Result<Vec<u8>, hex::FromHexError> {
-    let s = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")).unwrap_or(s);
+    let s = s
+        .strip_prefix("0x")
+        .or_else(|| s.strip_prefix("0X"))
+        .unwrap_or(s);
     hex::decode(s)
 }
 
