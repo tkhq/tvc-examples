@@ -51,7 +51,6 @@ pub struct SignTransaction<'a> {
 ///
 /// The returned string is both stamped and sent — Turnkey re-hashes these exact
 /// bytes, so it must be produced once and used for both.
-#[allow(dead_code)] // consumed once POST /cosign is wired up
 pub fn build_sign_transaction(req: &SignTransaction) -> String {
     let activity = SignTransactionActivity {
         activity_type: ACTIVITY_TYPE_SIGN_TRANSACTION,

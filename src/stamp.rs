@@ -31,7 +31,6 @@ struct StampEnvelope {
 }
 
 /// A signed request, ready to POST to Turnkey.
-#[allow(dead_code)] // consumed once POST /cosign is wired up
 pub struct Stamped {
     /// The exact body bytes that were signed — send these unmodified.
     pub body: String,
@@ -40,7 +39,6 @@ pub struct Stamped {
 }
 
 /// Sign `body` with `key` and produce the `X-Stamp` header value.
-#[allow(dead_code)] // consumed once POST /cosign is wired up
 pub fn stamp(key: &ApiKey, body: &str) -> Stamped {
     // RustCrypto's `Signer` for P-256 hashes the message with SHA-256 and emits
     // a low-S–normalized signature — the same construction Turnkey verifies.

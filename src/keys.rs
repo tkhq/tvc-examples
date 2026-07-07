@@ -36,7 +36,6 @@ pub struct ApiKey {
 
 impl ApiKey {
     /// The P-256 signing key, used to produce Turnkey stamps.
-    #[allow(dead_code)]
     pub fn signing_key(&self) -> &SigningKey {
         &self.signing_key
     }
