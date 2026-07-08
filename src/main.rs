@@ -11,6 +11,7 @@
 mod activity;
 mod config;
 mod keys;
+mod proof;
 mod rules;
 mod stamp;
 mod tx;
@@ -27,7 +28,8 @@ use serde::{Deserialize, Serialize};
 
 use activity::{SignTransaction, build_sign_transaction};
 use config::Config;
-use keys::KeySet;
+use keys::{EphemeralKey, KeySet};
+use proof::{AppProof, ProofInputs, app_proof};
 use rules::{Classification, classify};
 
 /// Address the enclave listens on. TVC pivots serve plain HTTP inside the
@@ -37,6 +39,8 @@ const LISTEN_ADDR: &str = "0.0.0.0:3000";
 /// Shared, read-only application state.
 struct AppState {
     keys: KeySet,
+    /// Per-boot ephemeral key that signs App Proofs (see `proof.rs`).
+    ephemeral: EphemeralKey,
     config: Config,
 }
 
@@ -55,8 +59,20 @@ async fn main() {
         keys.admin.public_key_hex()
     );
 
+    // The ephemeral key is per-boot (one per replica); its public half is pinned
+    // in this replica's Boot Proof.
+    let ephemeral = EphemeralKey::load();
+    println!(
+        "keys: boot ephemeral key  = {}",
+        ephemeral.boot_ephemeral_key_hex()
+    );
+
     let config = Config::from_env();
-    let state = Arc::new(AppState { keys, config });
+    let state = Arc::new(AppState {
+        keys,
+        ephemeral,
+        config,
+    });
 
     let listener = tokio::net::TcpListener::bind(LISTEN_ADDR)
         .await
@@ -87,7 +103,11 @@ struct PubkeysResponse {
     admin: String,
 }
 
-/// Serve the derived public keys so an operator can register them as API users.
+/// Serve the quorum-derived stamping keys so an operator can register them as the
+/// two Turnkey API users. These are stable across the TVC's replicas (the quorum
+/// key is shared), so they only need to be fetched and registered once. The
+/// per-replica ephemeral/Boot-Proof key is NOT here — it rides on each `/cosign`
+/// response instead (see [`CosignResponse::boot_ephemeral_key`]).
 async fn pubkeys(State(state): State<Arc<AppState>>) -> Json<PubkeysResponse> {
     Json(PubkeysResponse {
         programmatic: state.keys.programmatic.public_key_hex(),
@@ -110,6 +130,12 @@ struct CosignResponse {
     activity_body: String,
     x_stamp: String,
     classification: Classification,
+    /// Enclave-signed proof committing to this decision (see `proof.rs`).
+    app_proof: AppProof,
+    /// The QOS KeySet of the replica that produced `app_proof`. Pass it to
+    /// `get_boot_proof` to fetch the Boot Proof and verify the proof against this
+    /// enclave's attested code. Per-replica, so it must come from this response.
+    boot_ephemeral_key: String,
 }
 
 #[derive(Serialize)]
@@ -150,18 +176,37 @@ async fn cosign(
         }
     };
 
+    // One timestamp shared by the activity body and the proof for this request.
+    let timestamp_ms = now_ms();
     let body = build_sign_transaction(&SignTransaction {
         organization_id: &state.config.organization_id,
         sign_with: &req.signer_address,
         unsigned_transaction: &req.unsigned_transaction,
-        timestamp_ms: now_ms(),
+        timestamp_ms,
     });
     let stamped = stamp::stamp(key, &body);
+
+    // Attach an App Proof committing to this decision. `raw` re-encoded is the
+    // same normalized (no-`0x`, lowercase) form the activity body carries.
+    let proof = app_proof(
+        &state.ephemeral,
+        &ProofInputs {
+            organization_id: &state.config.organization_id,
+            signer_address: &req.signer_address,
+            unsigned_transaction: &hex::encode(&raw),
+            classification,
+            stamped_with: &key.public_key_hex(),
+            activity_body: &stamped.body,
+            timestamp_ms,
+        },
+    );
 
     Ok(Json(CosignResponse {
         activity_body: stamped.body,
         x_stamp: stamped.x_stamp,
         classification,
+        app_proof: proof,
+        boot_ephemeral_key: state.ephemeral.boot_ephemeral_key_hex().to_string(),
     }))
 }
 
