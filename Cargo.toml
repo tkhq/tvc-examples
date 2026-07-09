@@ -18,3 +18,12 @@ serde_json = "1.0.150"
 sha2 = "0.11.0"
 tokio = { version = "1.52.3", features = ["full"] }
 toml = "1.1.2"
+
+# Release profile tuned for a small, deterministic enclave binary. `strip`
+# removes symbols/debug info (which carry build-machine paths), so the pivot
+# digest is reproducible across build hosts.
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"

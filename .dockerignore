@@ -1,0 +1,11 @@
+# Keep the build context minimal and deterministic: only Cargo manifests, src,
+# and the baked ruleset are COPYed in the Dockerfile. Excluding everything else
+# ensures the image digest is a pure function of the committed source.
+/target
+/notes
+/.git
+/.claude
+*.local.toml
+.env
+README.md
+rules.example.toml
