@@ -7,6 +7,12 @@
 //!                    as Turnkey API users).
 //!   POST /cosign   — classify an unsigned tx and return a stamped
 //!                    SIGN_TRANSACTION_V2 request for the customer to submit.
+//!
+//! Runtime config comes from CLI arguments (`pivotArgs` in a TVC deployment):
+//!   --organization-id <id>   the (sub-)org to stamp requests for (attested)
+//!   --rules-path <path>      ruleset TOML (default `rules.toml`; baked image
+//!                            deployments pass `/rules.toml`)
+//!   --port <n>               listen port (default 3000)
 
 mod activity;
 mod config;
@@ -32,9 +38,44 @@ use keys::{EphemeralKey, KeySet};
 use proof::{AppProof, ProofInputs, app_proof};
 use rules::{Classification, classify};
 
-/// Address the enclave listens on. TVC pivots serve plain HTTP inside the
-/// enclave; the host proxies to them.
-const LISTEN_ADDR: &str = "0.0.0.0:3000";
+/// Default listen port when `--port` is not supplied.
+const DEFAULT_PORT: u16 = 3000;
+
+/// Parsed command-line arguments (a TVC deployment supplies these as `pivotArgs`).
+struct Args {
+    organization_id: Option<String>,
+    rules_path: Option<String>,
+    port: u16,
+}
+
+/// Minimal hand-rolled arg parsing — avoids a CLI dependency for three flags.
+/// TVC pivots serve plain HTTP inside the enclave and bind all interfaces.
+fn parse_args() -> Args {
+    let mut args = Args {
+        organization_id: None,
+        rules_path: None,
+        port: DEFAULT_PORT,
+    };
+    let mut iter = std::env::args().skip(1);
+    while let Some(flag) = iter.next() {
+        match flag.as_str() {
+            "--organization-id" => args.organization_id = iter.next(),
+            "--rules-path" => args.rules_path = iter.next(),
+            "--port" => {
+                if let Some(v) = iter.next() {
+                    match v.parse() {
+                        Ok(p) => args.port = p,
+                        Err(_) => {
+                            eprintln!("args: WARNING invalid --port {v:?}, using {DEFAULT_PORT}")
+                        }
+                    }
+                }
+            }
+            other => eprintln!("args: WARNING ignoring unknown argument {other:?}"),
+        }
+    }
+    args
+}
 
 /// Shared, read-only application state.
 struct AppState {
@@ -46,6 +87,8 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
+    let args = parse_args();
+
     // Derive the enclave's two API keys once at boot. Enclave stdout is not
     // observable in production, so these prints are only a local-dev aid; the
     // pubkeys are exposed over GET /pubkeys for registration.
@@ -67,17 +110,18 @@ async fn main() {
         ephemeral.boot_ephemeral_key_hex()
     );
 
-    let config = Config::from_env();
+    let config = Config::load(args.organization_id.as_deref(), args.rules_path.as_deref());
     let state = Arc::new(AppState {
         keys,
         ephemeral,
         config,
     });
 
-    let listener = tokio::net::TcpListener::bind(LISTEN_ADDR)
+    let listen_addr = format!("0.0.0.0:{}", args.port);
+    let listener = tokio::net::TcpListener::bind(&listen_addr)
         .await
         .expect("bind listener");
-    println!("tvc-cosign listening on {LISTEN_ADDR}");
+    println!("tvc-cosign listening on {listen_addr}");
 
     axum::serve(listener, router(state)).await.expect("serve");
 }
