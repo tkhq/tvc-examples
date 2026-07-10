@@ -89,7 +89,7 @@ cargo test
 
 # Create a ruleset from the example and run locally.
 cp rules.example.toml rules.toml
-cargo run -- --organization-id "$YOUR_SUB_ORG_ID" --rules-path rules.example.toml
+cargo run -- --organization-id "$YOUR_ORG_ID" --rules-path rules.example.toml
 
 # In another shell:
 curl -s localhost:3000/health
@@ -110,84 +110,213 @@ curl -s -X POST localhost:3000/cosign -H 'content-type: application/json' \
 
 ## Reproducible build
 
-A TVC app boots from a container image whose digest is committed to the
-deployment, and the QOS manifest additionally pins the pivot binary's digest. If
-the binary changes between builds, even from identical source, attestation
-fails. Every build input is therefore pinned:
+A TVC app boots by extracting and running **only the pivot binary** from the
+container image (measured as `expectedPivotDigest`); the rest of the image
+filesystem is never mounted in the enclave. The QOS manifest pins that binary's
+digest, so if the binary changes between builds, even from identical source,
+attestation fails. Because the container filesystem is not available at runtime,
+the **ruleset is compiled into the binary** (`include_str!("rules.toml")`, see
+`src/rules.rs`) rather than shipped as a file, which also means it is covered by
+the attested `expectedPivotDigest`. Every build input is pinned:
 
 | Input | How it's pinned |
 |---|---|
 | Rust toolchain | `rust:1.94-alpine` in `Dockerfile` (pin its `@sha256:` before deploying; see the comment in the file) |
 | Runtime base | `stagex/core-busybox:1.36.1@sha256:cac5d773…` (StageX is itself reproducible) |
 | Rust dependencies | `Cargo.lock`, committed; built with `--locked` |
+| Ruleset | `rules.toml` compiled into the binary via `include_str!`, so it is covered by `expectedPivotDigest` |
 | Symbols / paths | `[profile.release] strip = true` removes build-machine paths from the binary |
 
 The runtime image ships **no ca-certificates and no libc**, the binary is static
 and makes no egress (see [Limitations](#limitations--operational-considerations)).
 
+### Step 1 — Set your ruleset (compiled into the binary)
+
+`rules.toml` at the crate root is compiled into the binary at build time
+(`include_str!`), so it becomes part of the attested `expectedPivotDigest` and is
+present in the enclave (a file baked into the image would not be — TVC runs only
+the pivot binary). Fill in your real allowlists before building:
+
 ```bash
-# Bake your real ruleset into the image (it becomes part of the attested digest).
 cp rules.example.toml rules.toml && $EDITOR rules.toml
+```
 
-# Build + push for linux/amd64 (required by Nitro Enclaves).
-docker buildx build --platform linux/amd64 \
-  -t ghcr.io/YOUR_ORG/tvc-cosign:latest --push .
+> `rules.toml` must exist at the crate root for the build to compile. Changing it
+> changes the binary, and therefore `expectedPivotDigest`, which is exactly what
+> makes the ruleset attestable.
 
-# The container image digest for the deployment (pick the linux/amd64 manifest):
-docker buildx imagetools inspect ghcr.io/YOUR_ORG/tvc-cosign:latest
-# → use ghcr.io/YOUR_ORG/tvc-cosign@sha256:<amd64-digest>
+Optionally pin the builder toolchain for a bit-for-bit reproducible build (see the
+comment at the top of the `Dockerfile`), not required for a working deployment,
+only for third parties to reproduce the exact binary digest.
 
-# The pivot binary digest (expectedPivotDigest). The build also prints this as
-# an `expectedPivotDigest=sha256:...` line; to recompute from the pushed image:
-docker create --name x ghcr.io/YOUR_ORG/tvc-cosign:latest /bin/true \
-  && docker cp x:/tvc-cosign ./tvc-cosign.bin && docker rm x
+### Step 2 — Build and push to a container registry
+
+GHCR is used here only as an example. Any OCI-compliant registry works
+(Docker Hub, Amazon ECR, GCP Artifact Registry, a self-hosted registry) as long
+as TVC can pull the image **by digest** and it's a standard `linux/amd64` OCI
+image. Substitute your registry host/namespace for `ghcr.io/YOUR_GITHUB_USERNAME`
+throughout (and use that registry's login instead of `docker login ghcr.io`).
+
+```bash
+# Create a GitHub Personal Access Token with the `write:packages` scope:
+#   https://github.com/settings/tokens/new?scopes=write:packages
+# Read it without it landing in shell history (-s silences echo; `read` is a
+# builtin so the value is never a command argument).
+read -s GITHUB_TOKEN && export GITHUB_TOKEN
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+
+# Build for linux/amd64 (required by Nitro Enclaves) and push.
+# --provenance=false --sbom=false keeps the push a single image manifest instead of
+# wrapping it in a multi-arch index, so there is exactly one digest to pin.
+docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
+  -t ghcr.io/YOUR_GITHUB_USERNAME/tvc-cosign:latest --push .
+```
+
+Make the package public so the enclave can pull it without a pull secret:
+GitHub → Packages → `tvc-cosign` → Package settings → Change visibility → Public.
+(If you keep it private, you must set `pivotContainerEncryptedPullSecret` in the
+deploy config instead.)
+
+### Step 3 — Capture the two digests
+
+TVC pins **both** the container image and the pivot binary inside it.
+
+```bash
+# (a) Container image digest -> pivotContainerImageUrl. With the single-manifest
+# build above, this is just the top-level `Digest:` (MediaType
+# ...manifest.v2+json). If you built without --provenance=false, the output is an
+# index instead and you pick the child whose line says `Platform: linux/amd64`.
+docker buildx imagetools inspect ghcr.io/YOUR_GITHUB_USERNAME/tvc-cosign:latest
+# → ghcr.io/YOUR_GITHUB_USERNAME/tvc-cosign@sha256:<digest>
+
+# (b) Pivot binary digest -> expectedPivotDigest. The build already prints it as
+# `expectedPivotDigest=sha256:...`; to recompute from the image:
+docker create --platform linux/amd64 --name tvc-extract \
+  ghcr.io/YOUR_GITHUB_USERNAME/tvc-cosign:latest /bin/true \
+  && docker cp tvc-extract:/tvc-cosign ./tvc-cosign.bin && docker rm tvc-extract
 sha256sum ./tvc-cosign.bin
 ```
+
+> **Source provenance.** Build from a clean, committed tree and record the git
+> commit (ideally an annotated tag) the image was built from, and publish it
+> alongside the deployment, since nothing in the registry infers it. To verify:
+> `git checkout <commit>`, rebuild Steps 1–3, and confirm the pivot binary
+> `sha256` equals the `expectedPivotDigest` in the enclave's attested QOS manifest
+> ([Verifying the proofs](#verifying-the-proofs)). With the builder pinned by
+> digest + `Cargo.lock` + `--locked`, that binary digest is deterministic from the
+> source. Note `rules.toml` is compiled into the binary (and is **not** committed,
+> it is per-deployment), so it also determines the digest: to reproduce a specific
+> deployment, a verifier needs both that commit **and** that deployment's exact
+> `rules.toml`. Publish your `rules.toml` alongside the deployment if you want
+> third parties to reproduce your `expectedPivotDigest`.
 
 ---
 
 ## Deploy to TVC
 
 Requires the [`tvc` CLI](https://docs.turnkey.com/getting-started/verifiable-cloud-quickstart)
-(`cargo install tvc`) and TVC access enabled for your org.
+(`cargo install tvc`) and TVC access enabled for your org. The steps below are the
+CLI flow; some parts (creating the app, creating the deployment) can also be done
+from the Turnkey dashboard. See the
+[Verifiable Cloud quickstart](https://docs.turnkey.com/features/verifiable-cloud/quickstart#create-your-first-verifiable-app)
+for the dashboard walkthrough. Approval is always done via the `tvc` CLI.
+
+### Step 4 — Create the TVC app
 
 ```bash
 tvc login                                  # generates an operator keypair
-tvc app init --output app.json             # set "name": "tvc-cosign", then:
+tvc app init --output app.json             # set "name": "tvc-cosign"
 tvc app create --config-file app.json
-
-tvc deploy init                            # edit the generated deploy-*.json:
-#   qosVersion:              <from TVC docs/dashboard>
-#   pivotContainerImageUrl:  ghcr.io/YOUR_ORG/tvc-cosign@sha256:<amd64-digest>
-#   pivotPath:               /tvc-cosign
-#   pivotArgs:               ["--organization-id","<YOUR_SUB_ORG_ID>",
-#                             "--rules-path","/rules.toml","--port","3000"]
-#   expectedPivotDigest:     sha256:<binary-digest>
-#   healthCheckType:         TVC_HEALTH_CHECK_TYPE_HTTP
-#   healthCheckPort:         3000
-#   publicIngressPort:       3000
-#   debugMode:               false
-tvc deploy create --config-file deploy-<timestamp>.json
-tvc deploy approve --deploy-id <DEPLOY_ID> --operator-id <OPERATOR_ID>
 ```
 
-`--organization-id` is passed in `pivotArgs`, so it is recorded in the QOS
-manifest and **attested**, so the deployment provably stamps only for that org. The
-ruleset is baked into the image at `/rules.toml`, so it is covered by the image
-digest. One deployment = one org + one ruleset.
-
-Once **LIVE**, the app is reachable at `https://app-<APP_UUID>.turnkey.cloud`:
+### Step 5 — Create the deployment
 
 ```bash
+tvc deploy init                            # writes deploy-<timestamp>.json
+```
+
+Edit the generated `deploy-<timestamp>.json`:
+
+```jsonc
+{
+  "qosVersion":             "0.12.0",       // LatestQosReleaseVersion
+  "pivotContainerImageUrl": "ghcr.io/YOUR_GITHUB_USERNAME/tvc-cosign@sha256:<amd64-digest>",
+  "pivotPath":              "/tvc-cosign",
+  "pivotArgs":              ["--organization-id", "<YOUR_ORG_ID>", "--port", "3000"],
+  "expectedPivotDigest":    "<sha256-binary-digest>",
+  "healthCheckType":        "TVC_HEALTH_CHECK_TYPE_HTTP",
+  "healthCheckPort":        3000,
+  "publicIngressPort":      3000,
+  "dangerousDeployDebugMode": false
+  // remove pivotContainerEncryptedPullSecret (image is public, see below)
+}
+```
+
+**On `pivotContainerEncryptedPullSecret`:** `tvc deploy init` always generates this
+line with the placeholder `"<REMOVE_ME_IF_PIVOT_CONTAINER_URL_IS_PUBLIC>"`. It is
+only needed to pull the image from a **private** registry. If your image is public,
+delete the line entirely, otherwise `tvc deploy create` rejects the config with a
+placeholder error. (If you keep the image private, supply the secret with
+`--pivot-pull-secret <PATH>` instead.) In this demo we made the ghcr image public
+in Step 2, so **remove the line**.
+
+Also keep `dangerousDeployDebugMode: false` for any real deployment: debug mode
+disables normal attestation enforcement (PCRs come back zeroed), which invalidates
+the boot and app proofs.
+
+```bash
+tvc deploy create --config-file deploy-<timestamp>.json
+# → prints Deployment ID and App ID; copy the Deployment ID.
+```
+
+`--organization-id` rides in `pivotArgs`, so it is recorded in the QOS manifest
+and **attested**, so the deployment provably stamps only for that org. The ruleset
+is compiled into the binary, covered by `expectedPivotDigest`. One deployment = one
+org + one ruleset.
+
+### Step 6 — Approve the manifest
+
+Passing `--deploy-id` is enough: `tvc deploy approve` fetches the manifest for that
+deployment (so it resolves the manifest ID itself) and resolves the operator ID and
+operator seed from your logged-in tvc profile (`~/.config/turnkey`, where
+`tvc app create` cached them). It then walks you through the interactive approval
+and posts it.
+
+```bash
+tvc deploy approve --deploy-id <DEPLOY_ID>
+```
+
+You only need the extra flags in specific cases:
+
+- `--operator-id <OPERATOR_ID>` if your profile has **more than one** saved operator
+  (otherwise it auto-selects the single one, or prompts interactively). The operator
+  ID is printed by `tvc app create` as "Manifest Set Operator IDs" and stored under
+  `last_operator_ids` in `~/.config/turnkey`; it is **not** shown by `deploy status`.
+- `--manifest-id <MANIFEST_ID>` only if you approve from a manifest file
+  (`--manifest <path>`) instead of `--deploy-id`. When needed, the manifest ID *is*
+  shown by `tvc deploy status --deploy-id <DEPLOY_ID>`.
+- `--dangerous-skip-interactive` if you run without a TTY (CI); otherwise the
+  interactive approval prompts require a terminal.
+
+### Step 7 — Go live
+
+The deployment reaches **LIVE** a few minutes after approval:
+
+```bash
+tvc deploy status --deploy-id <DEPLOY_ID>          # wait for LIVE
 curl https://app-<APP_UUID>.turnkey.cloud/health   # → {"status":"ok"}
 curl https://app-<APP_UUID>.turnkey.cloud/pubkeys  # the REAL stamping keys
 ```
+
+The `/pubkeys` values are the quorum-derived keys you register as API users in
+[Turnkey org setup](#turnkey-org-setup-users--policies).
 
 ---
 
 ## Turnkey org setup: users + policies
 
-Do this once, against the sub-org you passed as `--organization-id`.
+Do this once, against the org you passed as `--organization-id` (the org that owns
+the signing wallets, the two API users, and the policies).
 
 **1. A wallet** whose account address is your `signerAddress` / `signWith`
 target, and which appears in `allowed_signers` in `rules.toml`.
@@ -343,14 +472,16 @@ of it is secret; the only secrets are the enclave-provided key files.
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `--organization-id <id>` | none (warns, empty) | The (sub-)org placed in every `SIGN_TRANSACTION_V2` body. Attested via `pivotArgs`. |
-| `--rules-path <path>` | `rules.toml` | Ruleset TOML. Baked deployments pass `/rules.toml`. |
+| `--organization-id <id>` | none (warns, empty) | The org placed in every `SIGN_TRANSACTION_V2` body (owns the wallets + API users + policies). Attested via `pivotArgs`. |
+| `--rules-path <path>` | embedded ruleset | **Local-dev override only.** Loads a ruleset TOML from disk instead of the one compiled into the binary; a deployment does not use this (the file would not exist in the enclave). If the path fails to load, the app falls back to the embedded ruleset, never to deny-all. |
 | `--port <n>` | `3000` | Listen port (binds `0.0.0.0`). |
 
-For local dev, `TVC_ORGANIZATION_ID` and `TVC_RULES_PATH` env vars are honored as
-fallbacks (a TVC deployment cannot inject env vars). See `rules.example.toml` for
-the ruleset format: `allowed_signers`, and a `[programmatic]` block
-(`allowed_tokens`, `allowed_recipients`, `max_amount`) plus `[admin] selectors`.
+The ruleset a deployment enforces is the `rules.toml` **compiled into the binary**
+(`include_str!`), covered by `expectedPivotDigest`. For local dev, `--rules-path` /
+`TVC_RULES_PATH` can point at a different file, and `TVC_ORGANIZATION_ID` is honored
+(a TVC deployment cannot inject env vars). See `rules.example.toml` for the ruleset
+format: `allowed_signers`, and a `[programmatic]` block (`allowed_tokens`,
+`allowed_recipients`, `max_amount`) plus `[admin] selectors`.
 
 ---
 
@@ -358,6 +489,24 @@ the ruleset format: `allowed_signers`, and a `[programmatic]` block
 
 This is a POC. Known scope limits, all deliberate:
 
+- **Quorum-key provisioning: the stamping keys are not yet secret.** TVC currently
+  provisions every app with a **static, well-known quorum key** (custom
+  provisioning is "coming soon"). The programmatic and admin stamping keys are
+  HKDF-derived from that quorum key with public salts, so today anyone who knows
+  the well-known quorum key can re-derive both private keys. The programmatic
+  path's safety therefore does not rest on key secrecy: a party who derives the
+  programmatic key could stamp an arbitrary `SIGN_TRANSACTION` that the
+  programmatic policy (`activity.action == 'SIGN'`) allows, bypassing the enclave
+  ruleset (the ruleset only binds when the enclave itself stamps). Separately, a
+  quorum-key signature is not enclave-exclusive by design (the quorum key can be
+  provisioned into any conforming enclave), which is why enclave-exclusivity comes
+  from the **App Proof** (signed by the per-boot Ephemeral Key), not from the
+  stamp. Treat this deployment as **testnet / demo only** until custom (secret)
+  quorum-key provisioning is available; only then do the derived keys become
+  secret and the "only the attested enclave can stamp" property hold. Interim
+  mitigations: tighten the Turnkey programmatic policy (constrain `eth.tx.to` /
+  wallet / chain) so a leaked key can sign less, and verify the App Proof
+  out-of-band before acting on a stamp.
 - **No caller authentication on `/cosign`.** Access is network-perimeter only.
   Anyone who can reach the endpoint can request a stamp; safety comes from the
   ruleset + the Turnkey-side policies, not from authenticating the caller. Put it
