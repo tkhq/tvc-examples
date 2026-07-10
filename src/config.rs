@@ -5,22 +5,20 @@
 //! as a plain deploy-time argument or as a file baked into the image, and is not
 //! secret.
 //!
-//! In a TVC deployment there is no way to inject environment variables — runtime
-//! config arrives through the pivot binary's CLI arguments (`pivotArgs`), which
-//! are recorded in the QOS manifest and therefore attested. So the organization
-//! id is passed as `--organization-id`, and the ruleset is baked into the image
-//! at `--rules-path` (covered by the image digest). Environment variables are
-//! still honored as a convenience for local development.
+//! In a TVC deployment there is no way to inject environment variables: runtime
+//! config arrives through the pivot binary's CLI arguments (`pivotArgs`), which are
+//! recorded in the QOS manifest and therefore attested. The organization id is
+//! passed as `--organization-id`; the ruleset is compiled into the binary (see
+//! [`crate::rules::Ruleset::embedded`]). `--rules-path` / `TVC_RULES_PATH` remain a
+//! local-dev override only.
 
 use crate::rules::Ruleset;
 
 /// Environment variable holding the customer's (sub-)organization id (dev only;
 /// in a deployment this comes from `--organization-id`).
 const ORGANIZATION_ID_ENV: &str = "TVC_ORGANIZATION_ID";
-/// Environment variable pointing at the ruleset TOML file (dev-only fallback).
+/// Environment variable pointing at a ruleset TOML file (dev-only override).
 const RULES_PATH_ENV: &str = "TVC_RULES_PATH";
-/// Default ruleset path when neither `--rules-path` nor `TVC_RULES_PATH` is set.
-const DEFAULT_RULES_PATH: &str = "rules.toml";
 
 /// Non-secret configuration loaded once at startup.
 pub struct Config {
@@ -31,11 +29,12 @@ pub struct Config {
 }
 
 impl Config {
-    /// Resolve config with precedence CLI argument > environment variable >
-    /// default. A missing `organizationId` or ruleset file is tolerated so the
-    /// app still boots for local inspection: the org id falls back to an empty
-    /// placeholder, and the ruleset falls back to deny-all (every transaction is
-    /// REJECTed). Both warn loudly.
+    /// Resolve config. The `organizationId` comes from `--organization-id` (or env
+    /// var for dev); if unset it falls back to an empty placeholder and warns.
+    ///
+    /// The ruleset is the one compiled into the binary ([`Ruleset::embedded`]). A
+    /// `--rules-path` / `TVC_RULES_PATH` override is honored for local dev only, and
+    /// if it fails to load falls back to the embedded ruleset (never deny-all).
     pub fn load(cli_organization_id: Option<&str>, cli_rules_path: Option<&str>) -> Self {
         let organization_id = cli_organization_id
             .map(str::to_string)
@@ -49,14 +48,19 @@ impl Config {
                 String::new()
             });
 
-        let rules_path = cli_rules_path
+        let ruleset = match cli_rules_path
             .map(str::to_string)
             .or_else(|| std::env::var(RULES_PATH_ENV).ok())
-            .unwrap_or_else(|| DEFAULT_RULES_PATH.to_string());
-        let ruleset = Ruleset::load(&rules_path).unwrap_or_else(|e| {
-            eprintln!("config: WARNING could not load ruleset ({e}) — using deny-all");
-            Ruleset::deny_all()
-        });
+        {
+            Some(path) => Ruleset::load(&path).unwrap_or_else(|e| {
+                eprintln!(
+                    "config: WARNING could not load --rules-path {path} ({e}); using the \
+                     embedded ruleset"
+                );
+                Ruleset::embedded().expect("embedded ruleset (rules.toml) is valid")
+            }),
+            None => Ruleset::embedded().expect("embedded ruleset (rules.toml) is valid"),
+        };
 
         Config {
             organization_id,

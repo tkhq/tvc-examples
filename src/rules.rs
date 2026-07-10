@@ -15,6 +15,10 @@ use crate::tx::ParsedTx;
 /// ERC-20 `transfer(address,uint256)` selector (`keccak256(...)[..4]`).
 const TRANSFER_SELECTOR: [u8; 4] = [0xa9, 0x05, 0x9c, 0xbb];
 
+/// Ruleset compiled into the binary at build time. TVC runs only the pivot binary,
+/// so the ruleset ships inside it rather than as a file in the image.
+const EMBEDDED_RULES_TOML: &str = include_str!("../rules.toml");
+
 /// How a transaction is routed. Serialized as `PROGRAMMATIC` / `ADMIN` / `REJECT`.
 #[derive(serde::Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -34,22 +38,19 @@ pub struct Ruleset {
 }
 
 impl Ruleset {
-    /// A ruleset that rejects everything — the safe default when no config is
-    /// present (empty allowlists, zero cap, no admin selectors).
-    pub fn deny_all() -> Self {
-        Ruleset {
-            allowed_signers: HashSet::new(),
-            allowed_tokens: HashSet::new(),
-            allowed_recipients: HashSet::new(),
-            max_amount: U256::ZERO,
-            admin_selectors: HashSet::new(),
-        }
-    }
-
-    /// Load and validate a ruleset from a TOML file.
+    /// Load and validate a ruleset from a TOML file (local-dev override only; see
+    /// [`Ruleset::embedded`]).
     pub fn load(path: &str) -> Result<Self, String> {
         let text = std::fs::read_to_string(path).map_err(|e| format!("read {path}: {e}"))?;
         let raw: RawRuleset = toml::from_str(&text).map_err(|e| format!("parse {path}: {e}"))?;
+        raw.into_ruleset()
+    }
+
+    /// The ruleset compiled into the binary, covered by the attested
+    /// `expectedPivotDigest`. This is what a real TVC deployment enforces.
+    pub fn embedded() -> Result<Self, String> {
+        let raw: RawRuleset = toml::from_str(EMBEDDED_RULES_TOML)
+            .map_err(|e| format!("parse embedded rules.toml: {e}"))?;
         raw.into_ruleset()
     }
 }
@@ -311,11 +312,10 @@ mod tests {
     }
 
     #[test]
-    fn deny_all_rejects_everything() {
-        let tx = transfer_tx(TOKEN, RECIPIENT, 1);
-        assert_eq!(
-            classify(SIGNER, &tx, &Ruleset::deny_all()),
-            Classification::Reject
-        );
+    fn embedded_ruleset_parses() {
+        // The ruleset compiled in via include_str! is what a deployment enforces,
+        // so it must always be valid; a malformed rules.toml should fail here, not
+        // silently at enclave startup.
+        Ruleset::embedded().expect("embedded rules.toml parses");
     }
 }

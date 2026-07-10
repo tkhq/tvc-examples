@@ -6,7 +6,7 @@
 #   docker inspect rust:1.94-alpine --format='{{index .RepoDigests 0}}'
 # then append the resulting @sha256:... to the FROM line below. Keep the Rust
 # version aligned with rust-toolchain / your local toolchain for output parity.
-FROM rust:1.94-alpine AS builder
+FROM rust:1.94-alpine@sha256:77237dd363a0b127bb5ef532c2d64c0deb380b738e43a9c4bdac73398d6d0a08 AS builder
 
 # musl-dev supplies the headers + static C runtime the linker needs. Alpine's
 # default target is x86_64-unknown-linux-musl, so cargo produces a fully static
@@ -18,6 +18,9 @@ WORKDIR /app
 # stray host files and the digest stays a function of the committed source.
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+# rules.toml is compiled into the binary via include_str! (see src/rules.rs), so it
+# must be present in the build context.
+COPY rules.toml ./rules.toml
 
 # --locked builds against the committed Cargo.lock exactly (no dependency drift).
 RUN cargo build --release --locked
@@ -32,10 +35,8 @@ FROM stagex/core-busybox:1.36.1@sha256:cac5d773db1c69b832d022c469ccf5f52daf223b9
 
 COPY --from=builder /app/target/release/tvc-cosign /tvc-cosign
 
-# The ruleset is baked into the image so it is covered by the image digest — i.e.
-# attested as part of the deployment. Create ./rules.toml from rules.example.toml
-# (with your real allowlists) before building.
-COPY rules.toml /rules.toml
+# The ruleset is compiled into the binary, so it is covered by expectedPivotDigest.
+# There is deliberately no rules.toml file in this image.
 
 # Print the pivot binary digest at build time. This is the `expectedPivotDigest`
 # you record in the TVC deployment manifest.
@@ -45,6 +46,6 @@ EXPOSE 3000
 
 # For local `docker run`. In a TVC deployment these are overridden by the
 # manifest's pivotPath (/tvc-cosign) + pivotArgs, where you also add
-# --organization-id <your-sub-org-id> (see README Step 6).
+# --organization-id <your-org-id> (see README).
 ENTRYPOINT ["/tvc-cosign"]
-CMD ["--rules-path", "/rules.toml", "--port", "3000"]
+CMD ["--port", "3000"]

@@ -1,9 +1,17 @@
 # Rust build artifacts
 /target
 
+# Per-deployment ruleset: compiled into the binary via include_str!, but it holds
+# each deployer's own allowlists. Create it from rules.example.toml before building
+# (see README Step 1); this demo does not commit its rules, but you might want to do so if it fits your use case.
+/rules.toml
+
 # Local secrets / ruleset overrides (never commit real ones)
 *.local.toml
 .env
+
+# Extracted pivot binaries / digest-check artifacts
+*.bin
 
 # Notes
 /notes
