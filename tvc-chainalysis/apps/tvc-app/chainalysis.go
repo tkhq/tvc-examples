@@ -69,5 +69,12 @@ func (c *ChainalysisClient) CheckAddress(ctx context.Context, address string) (*
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
 
+	// Normalize a nil slice to an empty one so it marshals to a JSON array
+	// (`[]`) rather than `null`, keeping the API response shape stable for
+	// clients regardless of whether the address had any identifications.
+	if result.Identifications == nil {
+		result.Identifications = []Identification{}
+	}
+
 	return &result, nil
 }

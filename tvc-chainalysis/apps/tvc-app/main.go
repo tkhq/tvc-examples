@@ -81,9 +81,6 @@ func main() {
 
 		sanctioned := len(result.Identifications) > 0
 		identifications := result.Identifications
-		if identifications == nil {
-			identifications = []Identification{}
-		}
 
 		appProof, err := signScreening(signingKey, req.Address, sanctioned, identifications)
 		if err != nil {
