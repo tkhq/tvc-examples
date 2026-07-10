@@ -56,11 +56,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Health check — required by TVC (GET /health → 200).
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, `{"status":"ok"}`)
-	})
+	mux.HandleFunc("GET /health", healthcheck)
 
 	// Screen an address for sanctions.
 	mux.HandleFunc("POST /screen", func(w http.ResponseWriter, r *http.Request) {
@@ -111,4 +107,11 @@ func main() {
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
+}
+
+// healthcheck responds 200 with a small JSON body. TVC requires GET /health.
+func healthcheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, `{"status":"ok"}`)
 }
