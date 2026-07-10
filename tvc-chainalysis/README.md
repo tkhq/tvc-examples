@@ -65,7 +65,7 @@ tvc-chainalysis/
 ├── apps/
 │   ├── tvc-app/          # Go pivot binary — runs inside the enclave
 │   │   ├── main.go           # HTTP server: GET /health, POST /screen
-│   │   ├── chainalysis.go    # Chainalysis Sanctions API client + mocked addresses
+│   │   ├── chainalysis.go    # Chainalysis Sanctions API client
 │   │   ├── proof.go          # Ephemeral key loading, app proof signing, boot key derivation
 │   │   ├── go.mod
 │   │   └── Dockerfile
@@ -188,7 +188,7 @@ CHAINALYSIS_API_KEY=your-key ./tvc_app --port 3000
 curl http://localhost:3000/health
 # → {"status":"ok"}
 
-# Screen a known sanctioned address (mocked — see note on egress below)
+# Screen a known sanctioned address (real Chainalysis call — see note on egress below)
 curl -X POST http://localhost:3000/screen \
   -H "Content-Type: application/json" \
   -d '{"address":"0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a"}'
@@ -198,16 +198,13 @@ curl -X POST http://localhost:3000/screen \
 
 ### Note on egress
 
-TVC external connectivity (`externalConnectivity: true`) is not yet fully supported. The Chainalysis API call logic is in place in `chainalysis.go` in anticipation of the feature release.
+`CheckAddress` calls the Chainalysis Sanctions API for every address. Inside the enclave this requires TVC external connectivity (`externalConnectivity: true`) to be enabled so the app can reach `public.chainalysis.com`.
 
-In the meantime, `CheckAddress` short-circuits to hardcoded responses for two demo addresses before attempting any network call:
+This address is useful for testing a known result against the live API:
 
 | Address | Result |
 |---|---|
 | `0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a` | Sanctioned (OFAC SDN — Secondeye Solution) |
-| `0xffc93b73e5f9fa038598b675ed394faed168688b` | Clean |
-
-Any other address will attempt the real Chainalysis API call (which will fail inside the enclave until egress is enabled).
 
 ---
 
@@ -443,7 +440,7 @@ In the Vercel dashboard, add all the env vars from `.env.local` (the `NEXT_PUBLI
 When you screen an address:
 
 1. The Next.js API calls `POST /screen` on the TVC Go app running in the enclave
-2. The enclave checks the address (mocked or via Chainalysis) and **signs the result** with its ephemeral P-256 private key — a key derived from the QOS master seed that never leaves the enclave
+2. The enclave checks the address via the Chainalysis Sanctions API and **signs the result** with its ephemeral P-256 private key — a key derived from the QOS master seed that never leaves the enclave
 3. The response includes:
    - `appProof` — scheme, public key, the signed JSON payload, and the signature
    - `bootEphemeralKey` — the 130-byte QOS KeySet (encrypt pubkey + sign pubkey) derived from the same master seed

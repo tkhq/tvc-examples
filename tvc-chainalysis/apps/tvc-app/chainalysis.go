@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -40,44 +39,9 @@ func NewChainalysisClient(apiKey string) *ChainalysisClient {
 	}
 }
 
-// mockedAddresses short-circuits the Chainalysis API call for known test
-// addresses so the enclave (which has no external network access) can still
-// return realistic results during demos.
-var mockedAddresses = map[string]*chainalysisResponse{
-	"0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a": {
-		Identifications: []Identification{
-			{
-				Category: "sanctioned entity",
-				Name:     "SANCTIONED ENTITY: OFAC SDN Secondeye Solution 2021-04-15 1da5821544e25c636c1417ba96ade4cf6d2f9b5a",
-				Description: "Pakistan-based Secondeye Solution (SES), also known as Forwarderz, is a synthetic identity document vendor that was added to the OFAC SDN list in April 2021.\n\n" +
-					"SES customers could buy fake identity documents to sign up for accounts with cryptocurrency exchanges, payment providers, banks, and more under false identities. " +
-					"According to the US Treasury Department, SES assisted the Internet Research Agency (IRA), the Russian troll farm that OFAC designated pursuant to E.O. 13848 in 2018 " +
-					"for interfering in the 2016 presidential election, in concealing its identity to evade sanctions.\n\nhttps://home.treasury.gov/news/press-releases/jy0126",
-				URL: "https://home.treasury.gov/news/press-releases/jy0126",
-			},
-			{
-				Category: "sanctions",
-				Name:     "SANCTIONS: OFAC SDN Secondeye Solution 2021-04-15 1da5821544e25c636c1417ba96ade4cf6d2f9b5a",
-				Description: "Pakistan-based Secondeye Solution (SES), also known as Forwarderz, is a synthetic identity document vendor that was added to the OFAC SDN list in April 2021.\n\n" +
-					"SES customers could buy fake identity documents to sign up for accounts with cryptocurrency exchanges, payment providers, banks, and more under false identities. " +
-					"According to the US Treasury Department, SES assisted the Internet Research Agency (IRA), the Russian troll farm that OFAC designated pursuant to E.O. 13848 in 2018 " +
-					"for interfering in the 2016 presidential election, in concealing its identity to evade sanctions.\n\nhttps://home.treasury.gov/news/press-releases/jy0126",
-				URL: "https://home.treasury.gov/news/press-releases/jy0126",
-			},
-		},
-	},
-	"0xffc93b73e5f9fa038598b675ed394faed168688b": {
-		Identifications: []Identification{},
-	},
-}
-
 // CheckAddress queries the Chainalysis Sanctions API for the given address.
 // Returns the raw API response; an empty Identifications slice means clean.
 func (c *ChainalysisClient) CheckAddress(ctx context.Context, address string) (*chainalysisResponse, error) {
-	if mocked, ok := mockedAddresses[strings.ToLower(address)]; ok {
-		return mocked, nil
-	}
-
 	url := fmt.Sprintf("%s/api/v1/address/%s", c.baseURL, address)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
