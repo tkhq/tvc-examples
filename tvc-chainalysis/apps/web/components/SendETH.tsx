@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTurnkey, TurnkeyRequestError } from "@turnkey/react-wallet-kit";
+import { useTurnkey } from "@turnkey/react-wallet-kit";
 import ProofBadge from "./ProofBadge";
 import { type BootProof } from "@/lib/tvc";
 
@@ -123,9 +123,10 @@ export default function SendETH() {
       setTo("");
       setAmount("");
       setScreenResult(null);
-    } catch (err: any) {
-      if (err.cause?.toString().includes("insufficient funds")) {
-        console.log("🚱 insufficient funds")
+    } catch (err) {
+      const cause = err instanceof Error ? err.cause : undefined;
+      if (cause && String(cause).includes("insufficient funds")) {
+        console.log("🚱 insufficient funds");
         setError("Insufficient funds");
       } else {
         setError("Unknown error");
