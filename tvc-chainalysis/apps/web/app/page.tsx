@@ -25,8 +25,7 @@ export default function Home() {
     }
 
     ensureWallet().catch(console.error);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authState]);
+  }, [authState, createWallet, refreshWallets]);
 
   if (authState !== AuthState.Authenticated) {
     return (
