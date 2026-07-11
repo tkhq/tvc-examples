@@ -20,7 +20,9 @@ import (
 
 const ephemeralKeyFile = "/qos.ephemeral.key"
 
-// QOS derive paths — must match qos_p256/src/lib.rs
+// QOS derive paths — must match the qos_p256 crate constants:
+//   https://docs.rs/qos_p256/0.10.2/qos_p256/constant.P256_SIGN_DERIVE_PATH.html
+//   https://docs.rs/qos_p256/0.10.2/qos_p256/constant.P256_ENCRYPT_DERIVE_PATH.html
 var p256SignDerivePath = []byte("qos_p256_sign")
 var p256EncryptDerivePath = []byte("qos_p256_encrypt")
 
