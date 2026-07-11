@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -22,6 +23,13 @@ type screenResponse struct {
 	Identifications  []Identification `json:"identifications"`
 	AppProof         *AppProof        `json:"appProof"`
 	BootEphemeralKey string           `json:"bootEphemeralKey,omitempty"`
+}
+
+// server holds the dependencies shared by the HTTP handlers.
+type server struct {
+	chainalysis      *ChainalysisClient
+	signingKey       *ecdsa.PrivateKey
+	bootEphemeralKey string
 }
 
 func main() {
@@ -52,52 +60,19 @@ func main() {
 		}
 	}
 
-	chainalysis := NewChainalysisClient(*apiKey)
+	srv := &server{
+		chainalysis:      NewChainalysisClient(*apiKey),
+		signingKey:       signingKey,
+		bootEphemeralKey: bootEphemeralKey,
+	}
+
 	mux := http.NewServeMux()
 
 	// Health check — required by TVC (GET /health → 200).
 	mux.HandleFunc("GET /health", healthcheck)
 
 	// Screen an address for sanctions.
-	mux.HandleFunc("POST /screen", func(w http.ResponseWriter, r *http.Request) {
-		var req screenRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, `{"error":"invalid JSON body"}`, http.StatusBadRequest)
-			return
-		}
-
-		req.Address = strings.TrimSpace(req.Address)
-		if req.Address == "" {
-			http.Error(w, `{"error":"address is required"}`, http.StatusBadRequest)
-			return
-		}
-
-		result, err := chainalysis.CheckAddress(r.Context(), req.Address)
-		if err != nil {
-			log.Printf("chainalysis error for %s: %v", req.Address, err)
-			http.Error(w, `{"error":"sanctions check failed"}`, http.StatusInternalServerError)
-			return
-		}
-
-		sanctioned := len(result.Identifications) > 0
-		identifications := result.Identifications
-
-		appProof, err := signScreening(signingKey, req.Address, sanctioned, identifications)
-		if err != nil {
-			log.Printf("WARNING: could not sign screening result: %v", err)
-		}
-
-		resp := screenResponse{
-			Address:          req.Address,
-			Sanctioned:       sanctioned,
-			Identifications:  identifications,
-			AppProof:         appProof,
-			BootEphemeralKey: bootEphemeralKey,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
-	})
+	mux.HandleFunc("POST /screen", srv.handleScreen)
 
 	addr := fmt.Sprintf("0.0.0.0:%d", *port)
 	log.Printf("tvc-chainalysis listening on %s", addr)
@@ -111,4 +86,46 @@ func healthcheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, `{"status":"ok"}`)
+}
+
+// handleScreen screens an address for sanctions and returns the result signed
+// with the enclave's ephemeral key (when available) plus the boot ephemeral key.
+func (s *server) handleScreen(w http.ResponseWriter, r *http.Request) {
+	var req screenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON body"}`, http.StatusBadRequest)
+		return
+	}
+
+	req.Address = strings.TrimSpace(req.Address)
+	if req.Address == "" {
+		http.Error(w, `{"error":"address is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	result, err := s.chainalysis.CheckAddress(r.Context(), req.Address)
+	if err != nil {
+		log.Printf("chainalysis error for %s: %v", req.Address, err)
+		http.Error(w, `{"error":"sanctions check failed"}`, http.StatusInternalServerError)
+		return
+	}
+
+	sanctioned := len(result.Identifications) > 0
+	identifications := result.Identifications
+
+	appProof, err := signScreening(s.signingKey, req.Address, sanctioned, identifications)
+	if err != nil {
+		log.Printf("WARNING: could not sign screening result: %v", err)
+	}
+
+	resp := screenResponse{
+		Address:          req.Address,
+		Sanctioned:       sanctioned,
+		Identifications:  identifications,
+		AppProof:         appProof,
+		BootEphemeralKey: s.bootEphemeralKey,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
