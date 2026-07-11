@@ -4,6 +4,7 @@ node_modules/
 .turbo/
 dist/
 build/
+*.tsbuildinfo
 
 # Env
 .env.local
