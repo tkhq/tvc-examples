@@ -37,23 +37,12 @@ export async function POST(req: NextRequest) {
   const destinationAddress = address.trim();
 
   // Find or create the user record for this Turnkey sub-org.
-  let [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.turnkeySubOrgId, orgId))
-    .limit(1);
-
-  if (!user) {
-    const newUser = {
-      id: crypto.randomUUID(),
-      turnkeyUserId: userId,
-      turnkeySubOrgId: orgId,
-      turnkeyWalletId: walletId ?? userId,
-      walletAddress,
-    };
-    await db.insert(users).values(newUser);
-    user = { ...newUser, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-  }
+  const user = await findOrCreateUser({
+    orgId,
+    userId,
+    walletId,
+    walletAddress,
+  });
 
   // Create the transaction intent before screening — it exists regardless of outcome.
   const txId = crypto.randomUUID();
@@ -170,4 +159,33 @@ export async function GET(req: NextRequest) {
       })
     ),
   });
+}
+
+// Look up the user for a Turnkey sub-org, creating the record on first sight.
+async function findOrCreateUser(params: {
+  orgId: string;
+  userId: string;
+  walletId?: string;
+  walletAddress: string;
+}): Promise<typeof users.$inferSelect> {
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.turnkeySubOrgId, params.orgId))
+    .limit(1);
+  if (existing) return existing;
+
+  const newUser = {
+    id: crypto.randomUUID(),
+    turnkeyUserId: params.userId,
+    turnkeySubOrgId: params.orgId,
+    turnkeyWalletId: params.walletId ?? params.userId,
+    walletAddress: params.walletAddress,
+  };
+  await db.insert(users).values(newUser);
+  return {
+    ...newUser,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
