@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { screenAddress } from "@/lib/tvc";
 import { turnkey } from "@/lib/turnkey";
 import { db } from "@/db";
@@ -9,18 +10,29 @@ import { users, transactions, screenings } from "@/db/schema";
 type GetBootProofRequest = { organizationId: string; ephemeralKey: string };
 type GetBootProofResponse = { bootProof: Record<string, unknown> };
 
-export async function POST(req: NextRequest) {
-  const { address, orgId, userId, walletAddress, walletId, valueWei, chainId } =
-    await req.json();
+// Shape of the POST /api/screen request body. The first four fields are
+// required; the rest carry send-transaction context and default downstream.
+const ScreenRequestSchema = z.object({
+  address: z.string().min(1),
+  orgId: z.string().min(1),
+  userId: z.string().min(1),
+  walletAddress: z.string().min(1),
+  walletId: z.string().optional(),
+  valueWei: z.string().optional(),
+  chainId: z.number().optional(),
+});
 
-  if (!address || typeof address !== "string")
-    return NextResponse.json({ error: "address is required" }, { status: 400 });
-  if (!orgId || typeof orgId !== "string")
-    return NextResponse.json({ error: "orgId is required" }, { status: 400 });
-  if (!userId || typeof userId !== "string")
-    return NextResponse.json({ error: "userId is required" }, { status: 400 });
-  if (!walletAddress || typeof walletAddress !== "string")
-    return NextResponse.json({ error: "walletAddress is required" }, { status: 400 });
+export async function POST(req: NextRequest) {
+  const parsed = ScreenRequestSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    const field = parsed.error.issues[0]?.path[0] ?? "request";
+    return NextResponse.json(
+      { error: `${String(field)} is required` },
+      { status: 400 },
+    );
+  }
+  const { address, orgId, userId, walletAddress, walletId, valueWei, chainId } =
+    parsed.data;
 
   const destinationAddress = address.trim();
 
