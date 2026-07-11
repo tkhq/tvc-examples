@@ -21,8 +21,9 @@ import (
 const ephemeralKeyFile = "/qos.ephemeral.key"
 
 // QOS derive paths — must match the qos_p256 crate constants:
-//   https://docs.rs/qos_p256/0.10.2/qos_p256/constant.P256_SIGN_DERIVE_PATH.html
-//   https://docs.rs/qos_p256/0.10.2/qos_p256/constant.P256_ENCRYPT_DERIVE_PATH.html
+//
+//	https://docs.rs/qos_p256/0.10.2/qos_p256/constant.P256_SIGN_DERIVE_PATH.html
+//	https://docs.rs/qos_p256/0.10.2/qos_p256/constant.P256_ENCRYPT_DERIVE_PATH.html
 var p256SignDerivePath = []byte("qos_p256_sign")
 var p256EncryptDerivePath = []byte("qos_p256_encrypt")
 
@@ -49,7 +50,13 @@ type sanctionsCheckData struct {
 // loadEphemeralSigningKey reads the QOS ephemeral key file and derives the P-256 signing key
 // via HKDF-SHA512(ikm=masterSeed, salt="qos_p256_sign", info=nil).
 // Also returns the raw master seed for use with buildBootEphemeralKey.
-// Returns (nil, nil, nil) if the file doesn't exist (e.g. running outside an enclave).
+//
+// A missing key file is not treated as an error: it returns (nil, nil, nil).
+// The file only exists inside the enclave, so when running locally (or anywhere
+// outside TVC) the app is expected to start without it and simply serve
+// screening results with no app proof. The caller checks for a nil key and logs
+// a warning rather than failing. Any other read/parse failure IS returned as an
+// error, since that indicates a genuinely malformed key rather than its absence.
 func loadEphemeralSigningKey() (*ecdsa.PrivateKey, []byte, error) {
 	data, err := os.ReadFile(ephemeralKeyFile)
 	if os.IsNotExist(err) {
