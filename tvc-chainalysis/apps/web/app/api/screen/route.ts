@@ -5,6 +5,10 @@ import { turnkey } from "@/lib/turnkey";
 import { db } from "@/db";
 import { users, transactions, screenings } from "@/db/schema";
 
+// Request/response shapes for the Turnkey get_boot_proof query.
+type GetBootProofRequest = { organizationId: string; ephemeralKey: string };
+type GetBootProofResponse = { bootProof: Record<string, unknown> };
+
 export async function POST(req: NextRequest) {
   const { address, orgId, userId, walletAddress, walletId, valueWei, chainId } =
     await req.json();
@@ -62,13 +66,15 @@ export async function POST(req: NextRequest) {
   let bootProof: Record<string, unknown> | null = null;
   if (screening.bootEphemeralKey) {
     try {
-      const resp = await turnkey.apiClient().request<
-        { organizationId: string; ephemeralKey: string },
-        { bootProof: Record<string, unknown> }
-      >("/public/v1/query/get_boot_proof", {
-        organizationId: process.env.TURNKEY_ORG_ID!,
-        ephemeralKey: screening.bootEphemeralKey,
-      });
+      const resp = await turnkey
+        .apiClient()
+        .request<GetBootProofRequest, GetBootProofResponse>(
+          "/public/v1/query/get_boot_proof",
+          {
+            organizationId: process.env.TURNKEY_ORG_ID!,
+            ephemeralKey: screening.bootEphemeralKey,
+          },
+        );
       bootProof = resp.bootProof;
     } catch (err) {
       console.error("Failed to fetch boot proof:", err);
