@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { screenAddress } from "@/lib/tvc";
+import { screenAddress } from "@/lib/tvc-app";
 import { turnkey } from "@/lib/turnkey";
 import { db } from "@/db";
 import { users, transactions, screenings } from "@/db/schema";

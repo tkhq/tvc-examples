@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import ProofBadge from "./ProofBadge";
-import { type AppProof, type BootProof, type Identification } from "@/lib/tvc";
+import { type AppProof, type BootProof, type Identification } from "@/lib/tvc-app";
 
 export interface ScreenedTransaction {
   id: string;

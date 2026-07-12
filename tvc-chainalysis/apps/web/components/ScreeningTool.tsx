@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTurnkey } from "@turnkey/react-wallet-kit";
 import ProofBadge from "./ProofBadge";
-import { type AppProof, type BootProof } from "@/lib/tvc";
+import { type AppProof, type BootProof } from "@/lib/tvc-app";
 
 interface Identification {
   category: string | null;

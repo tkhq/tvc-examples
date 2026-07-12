@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTurnkey } from "@turnkey/react-wallet-kit";
 import ProofBadge from "./ProofBadge";
-import { type BootProof } from "@/lib/tvc";
+import { type BootProof } from "@/lib/tvc-app";
 
 type EthTransaction = {
   from: string;

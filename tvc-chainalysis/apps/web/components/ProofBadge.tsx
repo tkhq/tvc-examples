@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type AppProof, type BootProof } from "@/lib/tvc";
+import { type AppProof, type BootProof } from "@/lib/tvc-app";
 
 interface ProofBadgeProps {
   appProof: AppProof | null;
