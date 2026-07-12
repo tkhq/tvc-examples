@@ -11,8 +11,8 @@ Verifiable on-chain sanctions screening powered by [Turnkey Verifiable Cloud](ht
 - [What you'll build](#what-youll-build)
 - [Project structure](#project-structure)
 - [Prerequisites](#prerequisites)
-- [Step 1 — Clone and configure environment](#step-1--clone-and-configure-environment)
-- [Step 2 — Set up the Turnkey Auth Proxy](#step-2--set-up-the-turnkey-auth-proxy)
+- [Step 1 — Set up the Turnkey Auth Proxy](#step-1--set-up-the-turnkey-auth-proxy)
+- [Step 2 — Clone and configure environment](#step-2--clone-and-configure-environment)
 - [Step 3 — Install and run the Next.js app locally](#step-3--install-and-run-the-nextjs-app-locally-no-tvc-yet)
 - [Step 4 — Build and test the Go TVC app locally](#step-4--build-and-test-the-go-tvc-app-locally)
 - [Step 5 — Build and push the Docker image to GHCR](#step-5--build-and-push-the-docker-image-to-ghcr)
@@ -108,7 +108,21 @@ tvc-chainalysis/
 
 ---
 
-## Step 1 — Clone and configure environment
+## Step 1 — Set up the Turnkey Auth Proxy
+
+The Auth Proxy lets the frontend call Turnkey without exposing your parent org's API key in the browser. The `handleLogin()` modal is powered by it. Set it up first so you have the Config ID ready when you fill in the env file in the next step.
+
+1. Go to **https://app.turnkey.com/dashboard/auth**
+2. Click **Auth Proxy** tab → toggle it **ON**
+3. Under **Allowed Origins**, add:
+   - `http://localhost:3000` (local dev)
+   - Your production URL (e.g. `https://your-app.vercel.app`)
+4. Under **Authentication Methods**, enable **Passkey** (disable email OTP if you want passkey-only)
+5. Copy the **Auth Proxy Config ID** → you'll paste it into `NEXT_PUBLIC_AUTH_PROXY_CONFIG_ID` in the next step
+
+---
+
+## Step 2 — Clone and configure environment
 
 This example lives in the [`tkhq/tvc-examples`](https://github.com/tkhq/tvc-examples) monorepo. You can clone the whole repo, or just this one example.
 
@@ -131,7 +145,7 @@ cd tvc-chainalysis
 Copy the example env file and fill in your values:
 
 ```bash
-cp .env.example apps/web/.env.local
+cp apps/web/.env.example apps/web/.env.local
 ```
 
 Open `apps/web/.env.local` and fill in:
@@ -143,23 +157,9 @@ Open `apps/web/.env.local` and fill in:
 | `TURNKEY_API_PRIVATE_KEY` | Same (shown once on creation) |
 | `TURNKEY_ORG_ID` | Turnkey dashboard → Settings → Organization |
 | `NEXT_PUBLIC_TURNKEY_ORG_ID` | Same as above |
-| `NEXT_PUBLIC_AUTH_PROXY_CONFIG_ID` | See Step 2 below |
+| `NEXT_PUBLIC_AUTH_PROXY_CONFIG_ID` | The Auth Proxy Config ID from Step 1 |
 
 Leave `TVC_APP_URL` and `TVC_APP_ID` empty for now — you'll fill those in after deploying the TVC app.
-
----
-
-## Step 2 — Set up the Turnkey Auth Proxy
-
-The Auth Proxy lets the frontend call Turnkey without exposing your parent org's API key in the browser. The `handleLogin()` modal is powered by it.
-
-1. Go to **https://app.turnkey.com/dashboard/auth**
-2. Click **Auth Proxy** tab → toggle it **ON**
-3. Under **Allowed Origins**, add:
-   - `http://localhost:3000` (local dev)
-   - Your production URL (e.g. `https://your-app.vercel.app`)
-4. Under **Authentication Methods**, enable **Passkey** (disable email OTP if you want passkey-only)
-5. Copy the **Auth Proxy Config ID** → paste into `NEXT_PUBLIC_AUTH_PROXY_CONFIG_ID`
 
 ---
 
