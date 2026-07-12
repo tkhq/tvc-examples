@@ -63,7 +63,7 @@ Chainalysis Sanctions API
 ```
 tvc-chainalysis/
 ├── apps/
-│   ├── tvc-app/          # Go pivot binary — runs inside the enclave
+│   ├── tvc-app/          # Go binary — runs inside the enclave
 │   │   ├── main.go           # HTTP server: GET /health, POST /screen
 │   │   ├── chainalysis.go    # Chainalysis Sanctions API client
 │   │   ├── proof.go          # Ephemeral key loading, app proof signing, boot key derivation
