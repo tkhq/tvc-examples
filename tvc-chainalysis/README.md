@@ -110,8 +110,21 @@ tvc-chainalysis/
 
 ## Step 1 — Clone and configure environment
 
+This example lives in the [`tkhq/tvc-examples`](https://github.com/tkhq/tvc-examples) monorepo. You can clone the whole repo, or just this one example.
+
+**Option 1 — clone the whole monorepo** (gets every example):
+
 ```bash
-git clone https://github.com/YOUR_GITHUB_ORG_OR_USERNAME/tvc-chainalysis.git
+git clone https://github.com/tkhq/tvc-examples.git
+cd tvc-examples/tvc-chainalysis
+```
+
+**Option 2 — clone just this example** (sparse checkout skips the other examples):
+
+```bash
+git clone --depth 1 --filter=blob:none --sparse https://github.com/tkhq/tvc-examples.git
+cd tvc-examples
+git sparse-checkout set tvc-chainalysis
 cd tvc-chainalysis
 ```
 
