@@ -182,7 +182,7 @@ Visit `http://localhost:3000`. You'll see the login prompt with a **Log in / Sig
 4. On success `authState` becomes `Authenticated` and the screening tool appears
 5. Sign-out calls `logout()` from `useTurnkey()` — no server-side session involved
 
-Authentication is entirely client-side via `@turnkey/react-wallet-kit`. No cookies, no JWTs, no custom session management.
+Authentication is entirely client-side via `@turnkey/react-wallet-kit`. No cookies, no JWTs, no custom session management. See [Getting started with Turnkey's Embedded Wallet Kit](https://docs.turnkey.com/solutions/embedded-wallets/integration-guide/react/getting-started) to learn more.
 
 ---
 
