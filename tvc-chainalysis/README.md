@@ -98,7 +98,7 @@ tvc-chainalysis/
 - **Node.js 18+** — `brew install node`
 - **pnpm** — `npm install -g pnpm`
 - **Rust** — `curl https://sh.rustup.rs -sSf | sh` (needed for the `tvc` CLI)
-- **`tvc` CLI** — `cargo install tvc`
+- **`tvc` CLI** — `cargo install tvc` (see the [`tvc` crate README](https://crates.io/crates/tvc) for the latest install instructions)
 - **Docker** — for building and pushing the TVC container image
 - **GitHub account** — for GHCR (free public image hosting)
 - **Turnkey account** — `https://app.turnkey.com`
