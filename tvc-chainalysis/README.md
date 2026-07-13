@@ -513,51 +513,11 @@ Replace the `@sha256:...` in the `Dockerfile` `FROM` line with the new digest.
 
 ## Database schema
 
-```sql
--- One row per authenticated Turnkey user (sub-org).
-CREATE TABLE users (
-  id TEXT PRIMARY KEY,
-  turnkey_user_id TEXT NOT NULL UNIQUE,
-  turnkey_sub_org_id TEXT NOT NULL UNIQUE,
-  turnkey_wallet_id TEXT NOT NULL UNIQUE,
-  wallet_address TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+The schema is defined with Drizzle in [`apps/web/db/schema.ts`](apps/web/db/schema.ts) — see that file for the authoritative, up-to-date definition. There are three tables:
 
--- One row per transaction intent (created before screening, updated after).
-CREATE TABLE transactions (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id),
-  from_address TEXT NOT NULL,
-  to_address TEXT NOT NULL,
-  value_wei TEXT NOT NULL,
-  data TEXT NOT NULL DEFAULT '0x',
-  chain_id INTEGER NOT NULL,
-  tx_hash TEXT,
-  status TEXT NOT NULL DEFAULT 'pending', -- pending | submitted | confirmed | blocked
-  submitted_at TEXT,
-  confirmed_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- Full audit log of every sanctions screening.
-CREATE TABLE screenings (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id),
-  transaction_id TEXT NOT NULL REFERENCES transactions(id),
-  address TEXT NOT NULL,
-  is_sanctioned INTEGER NOT NULL DEFAULT 0,
-  identifications TEXT NOT NULL,   -- JSON array
-  proof_scheme TEXT,
-  proof_public_key TEXT,
-  proof_payload TEXT,
-  proof_signature TEXT,
-  boot_proof TEXT,                 -- JSON object (null if proof fetch failed)
-  outcome TEXT NOT NULL,           -- allowed | blocked
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-```
+- **`users`** — one row per authenticated Turnkey user (sub-org)
+- **`transactions`** — one row per transaction intent (created before screening, updated after)
+- **`screenings`** — full audit log of every sanctions screening, including both proofs
 
 Run `pnpm db:studio` from `apps/web/` to browse the database in a web UI.
 
