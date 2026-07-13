@@ -16,7 +16,7 @@
     "@turnkey/sdk-server": "^1.7.3",
     "better-sqlite3": "^12.9.0",
     "drizzle-orm": "^0.30.10",
-    "next": "^16.2.3",
+    "next": "^16.2.10",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "zod": "^4.4.3"
