@@ -35,9 +35,8 @@ impl Config {
     /// The ruleset is the one compiled into the binary ([`Ruleset::embedded`]). A
     /// `--rules-path` / `TVC_RULES_PATH` override is honored for local dev only, and
     /// if it fails to load falls back to the embedded ruleset (never deny-all).
-    pub fn load(cli_organization_id: Option<&str>, cli_rules_path: Option<&str>) -> Self {
+    pub fn load(cli_organization_id: Option<String>, cli_rules_path: Option<String>) -> Self {
         let organization_id = cli_organization_id
-            .map(str::to_string)
             .or_else(|| std::env::var(ORGANIZATION_ID_ENV).ok())
             .unwrap_or_else(|| {
                 eprintln!(
@@ -48,10 +47,7 @@ impl Config {
                 String::new()
             });
 
-        let ruleset = match cli_rules_path
-            .map(str::to_string)
-            .or_else(|| std::env::var(RULES_PATH_ENV).ok())
-        {
+        let ruleset = match cli_rules_path.or_else(|| std::env::var(RULES_PATH_ENV).ok()) {
             Some(path) => Ruleset::load(&path).unwrap_or_else(|e| {
                 eprintln!(
                     "config: WARNING could not load --rules-path {path} ({e}); using the \

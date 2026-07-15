@@ -110,7 +110,7 @@ async fn main() {
         ephemeral.boot_ephemeral_key_hex()
     );
 
-    let config = Config::load(args.organization_id.as_deref(), args.rules_path.as_deref());
+    let config = Config::load(args.organization_id, args.rules_path);
     let state = Arc::new(AppState {
         keys,
         ephemeral,
