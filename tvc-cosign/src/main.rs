@@ -41,6 +41,20 @@ use rules::{Classification, classify};
 /// Default listen port when `--port` is not supplied.
 const DEFAULT_PORT: u16 = 3000;
 
+/// Usage text printed by `--help` / `-h`.
+const HELP: &str = "\
+tvc-cosign — TVC /cosign pivot binary
+
+USAGE:
+    tvc-cosign [OPTIONS]
+
+OPTIONS:
+    --organization-id <id>   (sub-)org to stamp requests for (attested)
+    --rules-path <path>      ruleset TOML override (local dev only; default: embedded)
+    --port <n>               listen port (default: 3000)
+    -h, --help               print this help and exit
+";
+
 /// Parsed command-line arguments (a TVC deployment supplies these as `pivotArgs`).
 struct Args {
     organization_id: Option<String>,
@@ -59,6 +73,10 @@ fn parse_args() -> Args {
     let mut iter = std::env::args().skip(1);
     while let Some(flag) = iter.next() {
         match flag.as_str() {
+            "--help" | "-h" => {
+                print!("{HELP}");
+                std::process::exit(0);
+            }
             "--organization-id" => args.organization_id = iter.next(),
             "--rules-path" => args.rules_path = iter.next(),
             "--port" => {
