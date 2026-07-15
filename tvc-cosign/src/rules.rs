@@ -65,6 +65,13 @@ pub fn classify(signer: Address, tx: &ParsedTx, rules: &Ruleset) -> Classificati
         return Classification::Reject;
     }
 
+    if tx.to.is_none() {
+        // Contract creation (`to == None`) is out of scope for this POC. Reject it
+        // before the selector checks: otherwise initcode whose first 4 bytes happen
+        // to match an admin selector would misclassify as ADMIN.
+        return Classification::Reject;
+    }
+
     let Some(selector) = tx.selector() else {
         // No calldata (e.g. a native transfer) — out of scope for this POC.
         return Classification::Reject;
@@ -262,6 +269,22 @@ mod tests {
         assert_eq!(
             classify(SIGNER, &tx, &ruleset_toml()),
             Classification::Admin
+        );
+    }
+
+    #[test]
+    fn contract_creation_with_admin_selector_initcode_is_rejected() {
+        // `to == None` is contract creation (out of scope). Even if the initcode's
+        // first 4 bytes collide with an allowlisted admin selector, it must REJECT,
+        // not route to ADMIN.
+        let tx = ParsedTx {
+            to: None,
+            value: U256::ZERO,
+            input: Bytes::from(vec![0x12, 0x34, 0x56, 0x78]),
+        };
+        assert_eq!(
+            classify(SIGNER, &tx, &ruleset_toml()),
+            Classification::Reject
         );
     }
 
