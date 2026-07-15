@@ -112,8 +112,10 @@ fn classify_transfer(tx: &ParsedTx, rules: &Ruleset) -> Classification {
 /// followed by a 32-byte amount. Rejects non-canonical (non-zero-padded) addresses.
 fn decode_transfer_args(input: &[u8]) -> Option<(Address, U256)> {
     // 4 (selector) + 32 (address) + 32 (amount)
-    let args = input.get(4..68)?;
-    let (addr_word, amount_word) = args.split_at(32);
+    if input.len() != 68 {
+        return None;
+    }
+    let (addr_word, amount_word) = input[4..].split_at(32);
     if addr_word[..12].iter().any(|&b| b != 0) {
         return None; // address must be zero-padded in its 32-byte word
     }
@@ -308,6 +310,20 @@ mod tests {
             value: U256::from(1u64),
             input: Bytes::new(),
         };
+        assert_eq!(
+            classify(SIGNER, &tx, &ruleset_toml()),
+            Classification::Reject
+        );
+    }
+
+    #[test]
+    fn transfer_with_trailing_calldata_is_rejected() {
+        // Canonical transfer calldata is exactly 68 bytes; extra trailing bytes
+        // are non-canonical and must not be auto-classified as PROGRAMMATIC.
+        let mut tx = transfer_tx(TOKEN, RECIPIENT, 500);
+        let mut input = tx.input.to_vec();
+        input.push(0xff);
+        tx.input = Bytes::from(input);
         assert_eq!(
             classify(SIGNER, &tx, &ruleset_toml()),
             Classification::Reject
