@@ -62,6 +62,13 @@ struct Args {
     port: u16,
 }
 
+/// Take the next arg as a flag's value, but only if it is not itself a flag.
+/// Guards against e.g. `--organization-id --port 3000` silently consuming
+/// `--port` as the org id.
+fn take_value(iter: &mut std::iter::Peekable<impl Iterator<Item = String>>) -> Option<String> {
+    iter.next_if(|v| !v.starts_with("--"))
+}
+
 /// Minimal hand-rolled arg parsing — avoids a CLI dependency for three flags.
 /// TVC pivots serve plain HTTP inside the enclave and bind all interfaces.
 fn parse_args() -> Args {
@@ -70,17 +77,17 @@ fn parse_args() -> Args {
         rules_path: None,
         port: DEFAULT_PORT,
     };
-    let mut iter = std::env::args().skip(1);
+    let mut iter = std::env::args().skip(1).peekable();
     while let Some(flag) = iter.next() {
         match flag.as_str() {
             "--help" | "-h" => {
                 print!("{HELP}");
                 std::process::exit(0);
             }
-            "--organization-id" => args.organization_id = iter.next(),
-            "--rules-path" => args.rules_path = iter.next(),
+            "--organization-id" => args.organization_id = take_value(&mut iter),
+            "--rules-path" => args.rules_path = take_value(&mut iter),
             "--port" => {
-                if let Some(v) = iter.next() {
+                if let Some(v) = take_value(&mut iter) {
                     match v.parse() {
                         Ok(p) => args.port = p,
                         Err(_) => {
@@ -301,4 +308,39 @@ fn bad_request(
             classification,
         }),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::take_value;
+
+    fn peekable(args: &[&str]) -> std::iter::Peekable<std::vec::IntoIter<String>> {
+        args.iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .into_iter()
+            .peekable()
+    }
+
+    #[test]
+    fn take_value_returns_a_non_flag_value() {
+        let mut it = peekable(&["value", "--next"]);
+        assert_eq!(take_value(&mut it), Some("value".to_string()));
+        // The following flag is left for the main loop to handle.
+        assert_eq!(it.next(), Some("--next".to_string()));
+    }
+
+    #[test]
+    fn take_value_does_not_consume_a_following_flag() {
+        let mut it = peekable(&["--port", "3000"]);
+        assert_eq!(take_value(&mut it), None);
+        // `--port` was not swallowed as a value.
+        assert_eq!(it.next(), Some("--port".to_string()));
+    }
+
+    #[test]
+    fn take_value_none_at_end_of_args() {
+        let mut it = peekable(&[]);
+        assert_eq!(take_value(&mut it), None);
+    }
 }
