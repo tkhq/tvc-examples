@@ -114,7 +114,7 @@ mod tests {
     fn transfer_calldata(recipient: Address, amount: u64) -> Vec<u8> {
         let mut data = vec![0xa9, 0x05, 0x9c, 0xbb]; // transfer selector
         data.extend_from_slice(&[0u8; 12]);
-        data.extend_from_slice(recipient.as_slice()); // right-padded to 32 bytes
+        data.extend_from_slice(recipient.as_slice()); // left-padded with zeros to 32 bytes
         data.extend_from_slice(&U256::from(amount).to_be_bytes::<32>());
         data
     }
