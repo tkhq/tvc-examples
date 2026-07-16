@@ -197,7 +197,9 @@ TVC pins **both** the container image and the pivot binary inside it.
 # ...manifest.v2+json). If you built without --provenance=false, the output is an
 # index instead and you pick the child whose line says `Platform: linux/amd64`.
 docker buildx imagetools inspect ghcr.io/YOUR_GITHUB_USERNAME/tvc-cosign:latest
-# → ghcr.io/YOUR_GITHUB_USERNAME/tvc-cosign@sha256:<digest>
+# This prints a `Digest: sha256:...` line (not the full URL). Assemble
+# pivotContainerImageUrl by joining the image name (`Name: ghcr.io/YOUR_GITHUB_USERNAME/tvc-cosign:latest`) to that digest, placing the `:latest` at the end with `@` + the digest value:
+#   ghcr.io/YOUR_GITHUB_USERNAME/tvc-cosign@sha256:<Digest>
 
 # (b) Pivot binary digest -> expectedPivotDigest. The build already prints it as
 # `expectedPivotDigest=sha256:...`; to recompute from the image:
