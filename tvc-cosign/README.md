@@ -127,7 +127,7 @@ the attested `expectedPivotDigest`. Every build input is pinned:
 
 | Input | How it's pinned |
 |---|---|
-| Rust toolchain | `rust:1.94-alpine` in `Dockerfile` (pin its `@sha256:` before deploying; see the comment in the file) |
+| Rust toolchain | `rust:1.94-alpine`, pinned by `@sha256:` in `Dockerfile` (re-pin if you bump the version; see the comment in the file) |
 | Runtime base | `stagex/core-busybox:1.36.1@sha256:cac5d773…` (StageX is itself reproducible) |
 | Rust dependencies | `Cargo.lock`, committed; built with `--locked` |
 | Ruleset | `rules.toml` compiled into the binary via `include_str!`, so it is covered by `expectedPivotDigest` |
@@ -141,19 +141,23 @@ and makes no egress (see [Limitations](#limitations--operational-considerations)
 `rules.toml` at the crate root is compiled into the binary at build time
 (`include_str!`), so it becomes part of the attested `expectedPivotDigest` and is
 present in the enclave (a file baked into the image would not be — TVC runs only
-the pivot binary). Fill in your real allowlists before building:
+the pivot binary). Copy the example, then open `rules.toml` in your editor and
+fill in your real allowlists before building:
 
 ```bash
-cp rules.example.toml rules.toml && $EDITOR rules.toml
+cp rules.example.toml rules.toml
+# then edit rules.toml
 ```
 
 > `rules.toml` must exist at the crate root for the build to compile. Changing it
 > changes the binary, and therefore `expectedPivotDigest`, which is exactly what
 > makes the ruleset attestable.
 
-Optionally pin the builder toolchain for a bit-for-bit reproducible build (see the
-comment at the top of the `Dockerfile`), not required for a working deployment,
-only for third parties to reproduce the exact binary digest.
+The builder toolchain is pinned by digest in the `Dockerfile`
+(`FROM rust:1.94-alpine@sha256:…`). That pin is what makes the build bit-for-bit
+reproducible, so anyone can rebuild from this source and confirm the exact
+`expectedPivotDigest`. If you bump the Rust version, re-pin it (see the comment at
+the top of the `Dockerfile`).
 
 ### Step 2 — Build and push to a container registry
 

@@ -1,11 +1,12 @@
 # syntax=docker/dockerfile:1
 # ── Build stage ──────────────────────────────────────────────────────────────
-# Reproducible builds require pinning every input by digest. Before an attestable
-# deployment, pin this image:
+# Reproducible builds require pinning every input by digest. The builder image
+# below is already pinned by @sha256:. To re-pin it (e.g. after bumping the Rust
+# version):
 #   docker pull rust:1.94-alpine
 #   docker inspect rust:1.94-alpine --format='{{index .RepoDigests 0}}'
-# then append the resulting @sha256:... to the FROM line below. Keep the Rust
-# version aligned with rust-toolchain / your local toolchain for output parity.
+# then replace the @sha256:... on the FROM line below. Keep the Rust version
+# aligned with rust-toolchain / your local toolchain for output parity.
 FROM rust:1.94-alpine@sha256:77237dd363a0b127bb5ef532c2d64c0deb380b738e43a9c4bdac73398d6d0a08 AS builder
 
 # musl-dev supplies the headers + static C runtime the linker needs. Alpine's
