@@ -16,6 +16,7 @@ use hkdf::Hkdf;
 use p256::SecretKey;
 use p256::ecdsa::SigningKey;
 use sha2::Sha512;
+use zeroize::Zeroizing;
 
 /// Path inside the enclave where QOS writes the hex-encoded 32-byte quorum seed.
 pub const QUORUM_KEY_PATH: &str = "/qos.quorum.key";
@@ -181,11 +182,11 @@ impl KeySet {
 /// our own API-key derivation and QOS's KeySet sub-derivation.
 fn derive_signing_key(seed: &[u8; 32], salt: &[u8]) -> SigningKey {
     let hk = Hkdf::<Sha512>::new(Some(salt), seed);
-    let mut okm = [0u8; 32];
-    hk.expand(&[], &mut okm)
+    let mut okm = Zeroizing::new([0u8; 32]);
+    hk.expand(&[], &mut okm[..])
         .expect("32 bytes is well under HKDF-SHA512's output limit");
-    let secret =
-        SecretKey::from_slice(&okm).expect("HKDF output is a valid P-256 scalar (overwhelmingly)");
+    let secret = SecretKey::from_slice(&okm[..])
+        .expect("HKDF output is a valid P-256 scalar (overwhelmingly)");
     secret.into()
 }
 
@@ -199,10 +200,10 @@ fn derive_key(seed: &[u8; 32], salt: &[u8]) -> ApiKey {
 /// Read and hex-decode a 32-byte hex seed file (`/qos.quorum.key` or
 /// `/qos.ephemeral.key`). Returns `None` if the file is missing or malformed, so
 /// callers can fall back gracefully outside an enclave.
-fn read_hex_seed(path: &Path) -> Option<[u8; 32]> {
-    let contents = std::fs::read_to_string(path).ok()?;
-    let bytes = hex::decode(contents.trim()).ok()?;
-    bytes.try_into().ok()
+fn read_hex_seed(path: &Path) -> Option<Zeroizing<[u8; 32]>> {
+    let contents = Zeroizing::new(std::fs::read_to_string(path).ok()?);
+    let bytes = Zeroizing::new(hex::decode(contents.trim()).ok()?);
+    Some(Zeroizing::new(bytes.as_slice().try_into().ok()?))
 }
 
 #[cfg(test)]

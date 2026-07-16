@@ -2996,6 +2996,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
+ "zeroize",
 ]
 
 [[package]]

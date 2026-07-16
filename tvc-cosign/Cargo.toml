@@ -19,6 +19,7 @@ sha2 = "0.11.0"
 thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["full"] }
 toml = "1.1.2"
+zeroize = { version = "1.9.0", features = ["alloc"] }
 
 # Release profile tuned for a small, deterministic enclave binary. `strip`
 # removes symbols/debug info (which carry build-machine paths), so the pivot
