@@ -9,8 +9,6 @@
 //! The rules engine only needs `to`, `value`, and the calldata (for the 4-byte
 //! selector + args), so we decode into that and drop the rest.
 
-use std::fmt;
-
 use alloy_consensus::transaction::RlpEcdsaDecodableTx;
 use alloy_consensus::{Transaction, TxEip1559, TxEip2930};
 use alloy_primitives::{Address, Bytes, TxKind, U256};
@@ -35,26 +33,17 @@ impl ParsedTx {
 }
 
 /// Why an unsigned transaction could not be parsed.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ParseError {
     /// No bytes to parse.
+    #[error("empty transaction")]
     Empty,
     /// First byte is not a supported transaction type / RLP list.
+    #[error("unsupported transaction type byte {0:#04x}")]
     UnsupportedType(u8),
     /// The RLP body was malformed.
+    #[error("malformed RLP: {0}")]
     Rlp(alloy_rlp::Error),
-}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ParseError::Empty => write!(f, "empty transaction"),
-            ParseError::UnsupportedType(b) => {
-                write!(f, "unsupported transaction type byte {b:#04x}")
-            }
-            ParseError::Rlp(e) => write!(f, "malformed RLP: {e}"),
-        }
-    }
 }
 
 /// Parse a raw unsigned transaction (already hex-decoded) into [`ParsedTx`].
