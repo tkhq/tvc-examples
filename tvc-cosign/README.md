@@ -13,21 +13,27 @@ The app **never holds Turnkey credentials and makes zero network egress**, it
 only stamps. All trust flows from the quorum-key-derived API keys plus Turnkey
 policies, and every decision is accompanied by a verifiable **App Proof**.
 
-```
-unsigned tx bytes ──▶ POST /cosign (this app, in the enclave)
-                          │ 1. parse: to / selector / args / value
-                          │ 2. classify: PROGRAMMATIC | ADMIN | REJECT
-                          │ 3. build SIGN_TRANSACTION_V2 body
-                          │ 4. stamp body with the derived prog OR admin key
-                          │ 5. App-Proof the decision with the ephemeral key
-                          ▼
-        { activityBody, xStamp, classification, appProof, bootEphemeralKey }
-                          │
-              customer submits activityBody + xStamp to api.turnkey.com
-                          ▼
-        Turnkey policies evaluate the stamping API user:
-          • TVC programmatic  → policy ALLOW           → COMPLETED
-          • TVC admin         → require human consensus → CONSENSUS_NEEDED
+```mermaid
+%%{init: {'themeVariables': {'actorBorder':'#4C48FF','actorLineColor':'#4C48FF','noteBorderColor':'#4C48FF', 'labelBoxBorderColor': '#4C48FF'}}}%%
+sequenceDiagram
+    participant C as Customer
+    participant E as TVC app (Nitro Enclave)
+    participant T as Turnkey API
+
+    C->>E: POST /cosign (unsignedTransaction, signerAddress)
+    Note over E: parse → classify → build SIGN_TRANSACTION_V2<br/>→ stamp (prog OR admin key) → App-Proof
+
+    alt PROGRAMMATIC
+        E-->>C: 200 (activityBody, xStamp, appProof, bootEphemeralKey)
+        C->>T: submit activityBody + xStamp
+        T-->>C: policy ALLOW → COMPLETED
+    else ADMIN
+        E-->>C: 200 (activityBody, xStamp, appProof, bootEphemeralKey)
+        C->>T: submit activityBody + xStamp
+        T-->>C: human consensus → CONSENSUS_NEEDED
+    else REJECT
+        E-->>C: 400 (no stamp)
+    end
 ```
 
 ---
