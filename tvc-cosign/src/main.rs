@@ -114,25 +114,21 @@ struct AppState {
 async fn main() {
     let args = parse_args();
 
-    // Derive the enclave's two API keys once at boot. Enclave stdout is not
-    // observable in production, so these prints are only a local-dev aid; the
-    // pubkeys are exposed over GET /pubkeys for registration.
+    // Derive the enclave's two API keys and the per-boot ephemeral key at boot.
+    // Enclave stdout is not observable in production, so these prints are only a
+    // local-dev aid: the API pubkeys are exposed over GET /pubkeys for
+    // registration, and the ephemeral key (one per replica) has its public half
+    // pinned in this replica's Boot Proof.
     let keys = KeySet::load();
-    println!(
-        "keys: programmatic pubkey = {}",
-        keys.programmatic.public_key_hex()
-    );
-    println!(
-        "keys: admin pubkey        = {}",
-        keys.admin.public_key_hex()
-    );
-
-    // The ephemeral key is per-boot (one per replica); its public half is pinned
-    // in this replica's Boot Proof.
     let ephemeral = EphemeralKey::load();
     println!(
-        "keys: boot ephemeral key  = {}",
-        ephemeral.boot_ephemeral_key_hex()
+        "keys:
+    programmatic pubkey = {}
+    admin pubkey        = {}
+    boot ephemeral key  = {}",
+        keys.programmatic.public_key_hex(),
+        keys.admin.public_key_hex(),
+        ephemeral.boot_ephemeral_key_hex(),
     );
 
     let config = Config::load(args.organization_id, args.rules_path);
