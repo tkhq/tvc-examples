@@ -2,11 +2,24 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 )
+
+// caCertsPEM is the CA trust bundle compiled into the binary. Trust roots are
+// embedded rather than read from the container filesystem so the app is fully
+// self-contained: the exact CA set is part of the attested pivot binary digest,
+// and TLS verification doesn't depend on ambient system trust. The static
+// (CGO_ENABLED=0) binary runs on a minimal image that ships no system trust
+// store, so there is no /etc/ssl/certs to read at runtime by design.
+//
+//go:embed ca-certificates.crt
+var caCertsPEM []byte
 
 // Identification represents a single sanctions match returned by Chainalysis.
 type Identification struct {
@@ -28,13 +41,26 @@ type ChainalysisClient struct {
 	httpClient *http.Client
 }
 
-// NewChainalysisClient creates a client using the provided API key.
+// NewChainalysisClient creates a client using the provided API key. It verifies
+// TLS against the embedded CA bundle only (see caCertsPEM), so it does not rely
+// on system certificates being present in the enclave image.
 func NewChainalysisClient(apiKey string) *ChainalysisClient {
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caCertsPEM) {
+		// The bundle is baked in at build time; a parse failure means the build
+		// is broken, so fail loudly rather than silently falling back to no roots.
+		panic("tvc-app: failed to parse embedded CA bundle (ca-certificates.crt)")
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{RootCAs: pool}
+
 	return &ChainalysisClient{
 		apiKey:  apiKey,
 		baseURL: "https://public.chainalysis.com",
 		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout:   10 * time.Second,
+			Transport: transport,
 		},
 	}
 }
