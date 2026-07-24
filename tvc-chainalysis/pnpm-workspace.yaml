@@ -1,0 +1,8 @@
+packages:
+  - "apps/*"
+
+# Allow these packages to run their install/build scripts. pnpm blocks
+# postinstall scripts by default, which would leave better-sqlite3 without its
+# compiled native addon and break db:push / runtime on a fresh clone.
+onlyBuiltDependencies:
+  - better-sqlite3

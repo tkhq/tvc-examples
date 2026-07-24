@@ -1,0 +1,5 @@
+tvc_app
+tvc_app_*
+*.md
+.git
+.gitignore

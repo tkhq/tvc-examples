@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #0f1117;
+  --color-surface-card: #161b27;
+  --color-surface-border: #1e2535;
+  --color-accent: #4f7ef8;
+  --color-accent-hover: #3d6ce6;
+  --color-success: #22c55e;
+  --color-danger: #ef4444;
+  --color-muted: #6b7280;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-gray-100 antialiased;
+  }
+
+  /* Thin scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-surface; }
+  ::-webkit-scrollbar-thumb { @apply bg-surface-border rounded-full; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-accent hover:bg-accent-hover text-white font-medium px-4 py-2 rounded-lg
+           transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply text-muted hover:text-gray-300 text-sm transition-colors;
+  }
+
+  .card {
+    @apply bg-surface-card border border-surface-border rounded-xl p-6;
+  }
+
+  .input {
+    @apply bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm
+           text-gray-100 placeholder-muted outline-none focus:border-accent
+           transition-colors w-full font-mono;
+  }
+}
