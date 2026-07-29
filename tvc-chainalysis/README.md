@@ -354,6 +354,30 @@ App ID: 189...716
 Config: deploy-2026-06-11-175029.json
 ```
 
+### Debug mode and logs
+
+By default, the enclave discards the app's `stdout`/`stderr`, so the `log` lines in `main.go` (address rejections, screening outcomes, Chainalysis errors) are **not** visible on a normal deployment. To capture them, deploy in **debug mode**, which turns on the enclave's log output.
+
+Debug mode is controlled by two opt-in flags, both prefixed `dangerous`:
+
+- **`dangerousEnableDebugModeDeployments`** in the app config file (`app.json` by default) permits debug deployments for the app. It can only be set **when the app is created and cannot be changed later**.
+- **`dangerousDeployDebugMode`** in the deploy config actually runs a given deployment in debug mode so its logs are captured.
+
+View the logs from the CLI (or the deployment's page in the dashboard):
+
+```bash
+tvc deploy debug-logs --deploy-id <deployment-id>
+# screened 0x…: sanctioned=false (0 identifications)
+# rejected invalid address format: "abc"
+```
+
+> **WARNING:** Debug mode turns off the guarantees TVC exists to provide, and the damage is **permanent and irreversible**:
+> - **No remote attestation:** The enclave boots in Nitro debug mode with all-zero PCRs, so it cannot prove what code it ran and proof verification no longer means anything.
+> - **The Quorum Key is compromised:** A debug enclave is inspectable, so its Quorum Key must be treated as public. Enabling `dangerousEnableDebugModeDeployments` on an app **permanently** taints that key for every deployment under it, and it cannot be undone.
+> - Debug deployments also run a single replica (not three), and any secret your app logs is exposed. Avoid logging secrets.
+>
+> **Never run production in debug mode.** Use a **separate** dev app (debug allowed) to iterate, and deploy the same image to a distinct production app with its own Quorum Key and debug off. See [Debug mode](https://docs.turnkey.com/features/verifiable-cloud/debug-mode) for the full explanation and recommended dev/prod split.
+
 ## Step 8 — Approve the TVC deployment
 
 Whether you deployed from the Turnkey Dashboard or via CLI this step will be done via the `tvc` CLI.
