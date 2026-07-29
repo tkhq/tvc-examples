@@ -330,17 +330,22 @@ When the app is deployed you will see it appear as a row in the Deployments tabl
 tvc deploy init   # generates a deploy template
 
 # Edit the generated file:
-# - qosVersion: <fill in the QOS version — check TVC docs or dashboard>
+# - appId: prefilled to the latest app you created
+# - qosVersion: prefilled to latest supported version
 # - pivotContainerImageUrl: ghcr.io/YOUR_GITHUB_ORG_OR_USERNAME/tvc-chainalysis:latest@sha256:...
 # - pivotPath: /tvc_app
 # - pivotArgs: ["--port", "3000", "--chainalysis-api-key", "<your-chainalysis-api-key>"]
 # - expectedPivotDigest: <sha256 from Step 5>
-# - debugMode: false
+# - dangerousDeployDebugMode: false
 # - pivotContainerEncryptedPullSecret: remove this field (image is public)
-# - healthCheckType: TVC_HEALTH_CHECK_TYPE_HTTP
-# - healthCheckPort: 3000
-# - publicIngressPort: 3000
+# - healthCheckType: TVC_HEALTH_CHECK_TYPE_HTTP (prefilled)
+# - healthCheckPort: 3000 (prefilled)
+# - publicIngressPort: 3000 (prefilled)
+```
 
+> ⚠️ Planning to set `dangerousDeployDebugMode` to `true`? Read [Debug mode and logs](#debug-mode-and-logs) first for security implications.
+
+```bash
 tvc deploy create --config-file deploy-2026-06-11-175029.json   # UPDATE THIS FILENAME TO YOUR GENERATED CONFIG FILE - filename includes a timestamp generated at init time
 ```
 
@@ -371,7 +376,7 @@ tvc deploy debug-logs --deploy-id <deployment-id>
 # rejected invalid address format: "abc"
 ```
 
-> **WARNING:** Debug mode turns off the guarantees TVC exists to provide, and the damage is **permanent and irreversible**:
+> ⚠️ **WARNING:** Debug mode turns off the guarantees TVC exists to provide, and the damage is **permanent and irreversible**:
 > - **No remote attestation:** The enclave boots in Nitro debug mode with all-zero PCRs, so it cannot prove what code it ran and proof verification no longer means anything.
 > - **The Quorum Key is compromised:** A debug enclave is inspectable, so its Quorum Key must be treated as public. Enabling `dangerousEnableDebugModeDeployments` on an app **permanently** taints that key for every deployment under it, and it cannot be undone.
 > - Debug deployments also run a single replica (not three), and any secret your app logs is exposed. Avoid logging secrets.
