@@ -20,17 +20,15 @@ type EthTransaction = {
 const CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID ?? "11155111");
 const CHAIN_CAIP2 = `eip155:${CHAIN_ID}`;
 
-interface Identification {
-  category: string | null;
-  name: string | null;
-  description: string | null;
-  url: string | null;
-}
-
+// Result shape returned by /api/screen. Mirrors the enriched Hermod verdict.
 interface ScreenResult {
   address: string;
-  isSanctioned: boolean;
-  identifications: Identification[];
+  isThreat: boolean;
+  threatLevel: number;
+  hitUuid: string;
+  hashedAddress: string;
+  hashedInvestigation: string;
+  sanctioned: string;
   appProof: {
     scheme: "SIGNATURE_SCHEME_EPHEMERAL_KEY_P256";
     publicKey: string;
@@ -40,7 +38,7 @@ interface ScreenResult {
   bootProof: BootProof | null;
 }
 
-type Status = "idle" | "screening" | "sanctioned" | "sending" | "sent";
+type Status = "idle" | "screening" | "blocked" | "sending" | "sent";
 
 function ethToHexWei(eth: string): string {
   const [whole = "0", frac = ""] = eth.split(".");
@@ -82,6 +80,7 @@ export default function SendETH() {
 
     try {
       // Step 1 — screen the destination address via the TVC enclave.
+      // The enclave calls Hermod (zeroShadow) and returns a signed verdict.
       const res = await fetch("/api/screen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -102,12 +101,14 @@ export default function SendETH() {
 
       setScreenResult(result);
 
-      if (result.isSanctioned) {
-        setStatus("sanctioned");
+      if (result.isThreat) {
+        setStatus("blocked");
         return;
       }
 
-      // Step 2 — address is not sanctioned, submit the transaction via Turnkey.
+      // Step 2 — no known threat, submit the transaction via Turnkey.
+      // NOTE: this is a fresh screen per transaction. Never rely on a
+      // prior miss to skip screening the next tx.
       setStatus("sending");
 
       const tx: EthTransaction = {
@@ -147,13 +148,14 @@ export default function SendETH() {
       <div>
         <h2 className="font-semibold text-lg">Send ETH</h2>
         <p className="text-sm text-muted mt-1">
-          Destination addresses are screened against OFAC sanctions via a TVC
-          enclave before the transaction is sent.
+          Destination addresses are screened by zeroShadow&apos;s Hermod
+          threat-intel agent, running inside a TVC enclave, before the
+          transaction is sent.
         </p>
       </div>
 
-      {/* Input form — hide while showing sanction block or sent confirmation */}
-      {status !== "sanctioned" && status !== "sent" && (
+      {/* Input form — hide while showing threat block or sent confirmation */}
+      {status !== "blocked" && status !== "sent" && (
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
             type="text"
@@ -195,8 +197,8 @@ export default function SendETH() {
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      {/* Sanctions block */}
-      {status === "sanctioned" && screenResult && (
+      {/* Threat block */}
+      {status === "blocked" && screenResult && (
         <div className="space-y-4">
           <div className="card flex items-start gap-4 border border-danger/40 bg-danger/5">
             <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-lg bg-danger/20">
@@ -208,41 +210,29 @@ export default function SendETH() {
                 {screenResult.address}
               </p>
               <p className="text-xs text-muted mt-1">
-                This address appears on OFAC sanctions lists.
+                Hermod flagged this address (threat level {screenResult.threatLevel}
+                {screenResult.sanctioned ? ` · ${screenResult.sanctioned}` : ""}).
               </p>
             </div>
           </div>
 
-          {screenResult.identifications.length > 0 && (
-            <div className="card space-y-3">
-              <h3 className="text-sm font-medium text-muted uppercase tracking-wide">
-                Sanctions details
-              </h3>
-              {screenResult.identifications.map((id, i) => (
-                <div
-                  key={i}
-                  className="border border-surface-border rounded-lg p-3 space-y-1 text-sm"
-                >
-                  {id.name && <p className="font-medium">{id.name}</p>}
-                  {id.description && (
-                    <p className="text-muted text-xs leading-relaxed">
-                      {id.description}
-                    </p>
-                  )}
-                  {id.url && (
-                    <a
-                      href={id.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent text-xs hover:underline"
-                    >
-                      Source ↗
-                    </a>
-                  )}
-                </div>
-              ))}
+          <div className="card space-y-2">
+            <h3 className="text-sm font-medium text-muted uppercase tracking-wide">
+              Hermod hit details
+            </h3>
+            <div className="text-xs space-y-1 font-mono">
+              <Row label="Threat level" value={`${screenResult.threatLevel} / 10`} />
+              {screenResult.sanctioned && (
+                <Row label="Sanctions" value={screenResult.sanctioned} />
+              )}
+              {screenResult.hitUuid && (
+                <Row label="Hit UUID" value={screenResult.hitUuid} />
+              )}
+              {screenResult.hashedInvestigation && (
+                <Row label="Investigation" value={screenResult.hashedInvestigation} />
+              )}
             </div>
-          )}
+          </div>
 
           <ProofBadge appProof={screenResult.appProof} bootProof={screenResult.bootProof} />
 
@@ -261,7 +251,7 @@ export default function SendETH() {
           <div>
             <p className="font-semibold text-success">Transaction submitted</p>
             <p className="text-xs text-muted mt-0.5">
-              Destination passed sanctions screening and the transaction was sent.
+              Destination passed threat screening and the transaction was sent.
             </p>
           </div>
           <button onClick={resetToIdle} className="btn-ghost text-xs ml-auto">
@@ -269,6 +259,15 @@ export default function SendETH() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2 text-xs">
+      <span className="text-muted w-28 flex-shrink-0">{label}</span>
+      <span className="text-gray-300 break-all">{value}</span>
     </div>
   );
 }

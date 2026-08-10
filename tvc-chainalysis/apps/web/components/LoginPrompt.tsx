@@ -24,10 +24,10 @@ export default function LoginPrompt() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold tracking-tight">
-            TVC Sanctions Screener
+            TVC Threat Screener
           </h1>
           <p className="text-muted text-sm">
-            Verifiable compliance powered by{" "}
+            Threat intel by zeroShadow&apos;s Hermod, verifiable execution by{" "}
             <span className="text-gray-300"><Link href="https://docs.turnkey.com/getting-started/verifiable-cloud-quickstart#turnkey-verifiable-cloud-quickstart" target="_blank" rel="noopener noreferrer">Turnkey Verifiable Cloud</Link></span>
           </p>
         </div>

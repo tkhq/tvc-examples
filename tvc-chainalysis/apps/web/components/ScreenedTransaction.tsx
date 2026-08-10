@@ -2,15 +2,19 @@
 
 import { useState } from "react";
 import ProofBadge from "./ProofBadge";
-import { type AppProof, type BootProof, type Identification } from "@/lib/tvc-app";
+import { type AppProof, type BootProof } from "@/lib/tvc-app";
 
 export interface ScreenedTransaction {
   id: string;
   fromAddress: string;
   toAddress: string;
   valueWei: string;
-  isSanctioned: boolean;
-  identifications: Identification[];
+  isThreat: boolean;
+  threatLevel: number;
+  hitUuid: string | null;
+  hashedAddress: string | null;
+  hashedInvestigation: string | null;
+  sanctioned: string;
   appProof: AppProof | null;
   bootProof: BootProof | null;
   outcome: "allowed" | "blocked";
@@ -19,7 +23,6 @@ export interface ScreenedTransaction {
 
 export default function ScreenedTransaction({ item }: { item: ScreenedTransaction }) {
   const [open, setOpen] = useState(false);
-  console.log("ITEM VALUE 👉", Number(item.valueWei) / 1e18);
 
   return (
     <div className="card overflow-hidden">
@@ -29,7 +32,7 @@ export default function ScreenedTransaction({ item }: { item: ScreenedTransactio
       >
         <div className="flex items-center gap-3 min-w-0">
           <span
-            className={`w-2 h-2 rounded-full flex-shrink-0 ${item.isSanctioned ? "bg-danger" : "bg-success"
+            className={`w-2 h-2 rounded-full flex-shrink-0 ${item.isThreat ? "bg-danger" : "bg-success"
               }`}
           />
           <span className="text-xs font-mono text-gray-300 truncate">
@@ -37,7 +40,7 @@ export default function ScreenedTransaction({ item }: { item: ScreenedTransactio
           </span>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
-          {item.isSanctioned ? (
+          {item.isThreat ? (
             <span className="text-xs text-danger hidden sm:inline">blocked</span>
           ) : (
             item.appProof && (
@@ -65,39 +68,35 @@ export default function ScreenedTransaction({ item }: { item: ScreenedTransactio
             />
             <DetailRow
               label="Status"
-              value={item.isSanctioned ? "Blocked" : "Cleared"}
-              valueClassName={item.isSanctioned ? "text-danger" : "text-success"}
+              value={item.isThreat ? "Threat detected" : "No known threat"}
+              valueClassName={item.isThreat ? "text-danger" : "text-success"}
             />
           </div>
 
-          {item.isSanctioned && item.identifications.length > 0 && (
+          {item.isThreat && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted uppercase tracking-wide">
-                Sanctions details
+                Hermod hit details
               </p>
-              {item.identifications.map((id, i) => (
-                <div
-                  key={i}
-                  className="border border-surface-border rounded-lg p-3 space-y-1 text-xs"
-                >
-                  {id.name && <p className="font-medium">{id.name}</p>}
-                  {id.category && <p className="text-muted">{id.category}</p>}
-                  {id.description && (
-                    <p className="text-muted leading-relaxed">{id.description}</p>
-                  )}
-                  {id.url && (
-                    <a
-                      href={id.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent hover:underline"
-                    >
-                      Source ↗
-                    </a>
-                  )}
-                </div>
-              ))}
+              <div className="border border-surface-border rounded-lg p-3 space-y-1 text-xs">
+                <DetailRow label="Threat level" value={`${item.threatLevel} / 10`} valueClassName="text-danger font-medium" />
+                {item.sanctioned && (
+                  <DetailRow label="Sanctions" value={item.sanctioned} valueClassName="text-danger font-medium" />
+                )}
+                {item.hitUuid && <DetailRow label="Hit UUID" value={item.hitUuid} mono />}
+                {item.hashedInvestigation && (
+                  <DetailRow label="Investigation" value={item.hashedInvestigation} mono />
+                )}
+              </div>
             </div>
+          )}
+
+          {!item.isThreat && (
+            <p className="text-xs text-muted italic leading-relaxed">
+              Point-in-time result. Hermod did not flag this address when the
+              screen ran; that is not evidence of future safety. Each transaction
+              should be screened again before it is submitted.
+            </p>
           )}
 
           <ProofBadge appProof={item.appProof} bootProof={item.bootProof} />
@@ -120,7 +119,7 @@ function DetailRow({
 }) {
   return (
     <div className="flex gap-2 text-xs">
-      <span className="text-muted w-16 flex-shrink-0">{label}</span>
+      <span className="text-muted w-24 flex-shrink-0">{label}</span>
       <span
         className={`break-all ${mono ? "font-mono" : ""} ${valueClassName ?? "text-gray-300"}`}
       >
