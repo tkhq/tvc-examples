@@ -35,16 +35,24 @@ type AppProof struct {
 	Signature    string `json:"signature"`
 }
 
-type proofPayload struct {
-	Type           string             `json:"type"`
-	TimestampMs    string             `json:"timestampMs"`
-	SanctionsCheck sanctionsCheckData `json:"sanctionsCheckProof"`
+// hermodProofPayload is the typed envelope signed by the enclave's ephemeral
+// key. The core signing pipeline (P-256 key, SHA-256 digest, ASN.1 DER
+// signature) is the same as in the original Chainalysis-based example, so
+// the in-browser verifier does not need a separate code path — only the
+// payload shape changed.
+type hermodProofPayload struct {
+	Type        string                `json:"type"`
+	TimestampMs string                `json:"timestampMs"`
+	ThreatCheck hermodThreatCheckData `json:"threatCheckProof"`
 }
 
-type sanctionsCheckData struct {
-	Address         string           `json:"address"`
-	Sanctioned      bool             `json:"sanctioned"`
-	Identifications []Identification `json:"identifications"`
+type hermodThreatCheckData struct {
+	Address             string `json:"address"`
+	IsThreat            bool   `json:"isThreat"`
+	ThreatLevel         int    `json:"threatLevel,omitempty"`
+	HitUUID             string `json:"hitUuid,omitempty"`
+	HashedInvestigation string `json:"hashedInvestigation,omitempty"`
+	Sanctioned          string `json:"sanctioned,omitempty"`
 }
 
 // loadEphemeralSigningKey reads the QOS ephemeral key file and derives the P-256 signing key
@@ -116,29 +124,34 @@ func buildBootEphemeralKey(masterSeed []byte) (string, error) {
 	return hex.EncodeToString(append(encryptPub, signPub...)), nil
 }
 
-// signScreening produces an App Proof for a sanctions screening result.
-// Returns nil if no signing key is available.
-func signScreening(privKey *ecdsa.PrivateKey, address string, sanctioned bool, identifications []Identification) (*AppProof, error) {
+// signHermodScreening produces an App Proof for a Hermod threat screening.
+// Returns nil if no signing key is available (e.g. running outside a Nitro
+// Enclave with no /qos.ephemeral.key file). Errors from marshaling, digest,
+// or signing are surfaced as-is.
+func signHermodScreening(privKey *ecdsa.PrivateKey, res *HermodResult) (*AppProof, error) {
 	if privKey == nil {
 		return nil, nil
 	}
-	if identifications == nil {
-		identifications = []Identification{}
+	if res == nil {
+		return nil, fmt.Errorf("cannot sign a nil hermod result")
 	}
 
-	payload := proofPayload{
-		Type:        "APP_PROOF_TYPE_SANCTIONS_SCREENING",
+	payload := hermodProofPayload{
+		Type:        "APP_PROOF_TYPE_THREAT_SCREENING",
 		TimestampMs: fmt.Sprintf("%d", time.Now().UnixMilli()),
-		SanctionsCheck: sanctionsCheckData{
-			Address:         address,
-			Sanctioned:      sanctioned,
-			Identifications: identifications,
+		ThreatCheck: hermodThreatCheckData{
+			Address:             res.Address,
+			IsThreat:            res.IsThreat,
+			ThreatLevel:         res.ThreatLevel,
+			HitUUID:             res.HitUUID,
+			HashedInvestigation: res.HashedInvestigation,
+			Sanctioned:          res.Sanctioned,
 		},
 	}
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("marshaling proof payload: %w", err)
+		return nil, fmt.Errorf("marshaling hermod proof payload: %w", err)
 	}
 
 	digest := sha256.Sum256(payloadBytes)
