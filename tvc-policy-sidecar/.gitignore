@@ -1,0 +1,9 @@
+/target/
+/out/
+/local-enclave/
+*.log
+*.bin
+.env
+.env.*
+/app.json
+/deploy*.json

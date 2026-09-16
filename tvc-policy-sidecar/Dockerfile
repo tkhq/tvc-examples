@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1
+# Keep the builder digest and rust-toolchain.toml aligned when upgrading Rust.
+FROM stagex/pallet-rust:1.94.0@sha256:4e2d4273a1d5c6d62660968302791f3cf550c3d12629e66314956ff46c97fc0e AS build
+
+# Rust configuration
+ENV RUSTFLAGS='-C target-feature=+crt-static'
+ENV CARGOFLAGS='--target x86_64-unknown-linux-musl --no-default-features --locked --release'
+
+# Directory for Rust artifacts
+ENV RELEASE_DIR=/src/target/x86_64-unknown-linux-musl/release
+
+# Name of the crate directory containing the main binary
+ENV APPLICATION_CRATE_NAME=policy-sidecar
+
+# Load Rust workspace
+COPY Cargo.toml Cargo.lock rust-toolchain.toml /src/
+COPY crates /src/crates
+WORKDIR /src/
+
+# Fetch the locked dependencies before compiling without network access.
+RUN cargo fetch --locked
+
+WORKDIR /src/crates/${APPLICATION_CRATE_NAME}
+RUN --network=none <<-EOF
+    set -eu
+    cargo build ${CARGOFLAGS}
+    mkdir -p /rootfs
+    mv ${RELEASE_DIR}/${APPLICATION_CRATE_NAME} /rootfs/tvc_app
+EOF
+
+# Use busybox as a base so we can easily cp the pivot binary if needed
+# We place the pivot binary at a known location (/tvc_app) so that it's easy to reference it later.
+FROM stagex/core-busybox:1.36.1@sha256:cac5d773db1c69b832d022c469ccf5f52daf223b91166e6866d42d6983a3b374 AS package
+COPY --from=build /rootfs/. .
+RUN echo "TVC application binary is available within the container image at /tvc_app"
+# compute the sha256sum of the binary. This will be required to deploy it within TVC
+RUN sha256sum /tvc_app | awk '{print "SHA256=" $1}'
+
+LABEL org.opencontainers.image.source="https://github.com/tkhq/tvc-examples"
+EXPOSE 44020
+
+# Local containers also need both QOS key files and --turnkey-organization-id.
+# TVC uses pivotPath and pivotArgs from the deployment manifest.
+ENTRYPOINT ["/tvc_app"]
+CMD ["--host", "0.0.0.0", "--port", "44020"]

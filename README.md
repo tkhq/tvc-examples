@@ -4,6 +4,12 @@ Example applications built on [Turnkey Verifiable Cloud (TVC)](https://docs.turn
 
 This repository is a **monorepo**. Each example is a self-contained project in its own top-level directory, with its own README and setup instructions.
 
+## Examples
+
+- [tvc-chainalysis](tvc-chainalysis/README.md): Sanctions screening with a TVC app and web frontend.
+- [tvc-cosign](tvc-cosign/README.md): Classify EVM transactions and stamp Turnkey requests.
+- [tvc-policy-sidecar](tvc-policy-sidecar/README.md): Verify Turnkey activity webhooks and vote on signing requests of chains without parsing-support.
+
 ## Getting the code
 
 Each example lives in the `tkhq/tvc-examples` monorepo. You can clone the whole repo, or just one example.
