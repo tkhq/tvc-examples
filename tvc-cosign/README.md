@@ -9,7 +9,7 @@ enclave's quorum key: `programmatic` or `admin`. The customer submits that
 request to Turnkey, where policies either auto-complete it (programmatic) or hold
 it for human approval (admin).
 
-The app **never holds Turnkey credentials and makes zero network egress**, it
+The app **derives its own Turnkey API keys and makes zero network egress**, it
 only stamps. All trust flows from the quorum-key-derived API keys plus Turnkey
 policies, and every decision is accompanied by a verifiable **App Proof**.
 
@@ -55,8 +55,9 @@ sequenceDiagram
 
 ## How it works
 
-The quorum key is **stable across deployments** and exposed inside the enclave at
-`/qos.quorum.key`. Two independent API keys are HKDF-derived from it:
+This walkthrough provisions a **custom quorum key**, which is stable across
+deployments and exposed inside the enclave at `/qos.quorum.key`. Two independent
+API keys are HKDF-derived from it:
 
 ```
 prog_key  = P256(HKDF-SHA512(salt="tvc-cosign-programmatic-v1", ikm=quorum_seed))
@@ -89,13 +90,20 @@ to the exact decision. See [Verifying the proofs](#verifying-the-proofs).
 
 ## Local development
 
+Local mode lets you exercise classification and inspect response formats without
+provisioning an enclave. Local App Proofs have no enclave attestation; use the
+deployed app for proof verification and fetch its `/pubkeys` for Turnkey API user
+registration, rather than registering the localhost values.
+
 ```bash
+# Create the ruleset required at compile time (skip if you already have one).
+cp -n rules.example.toml rules.toml
+
 # Build + run the full test suite (crypto is pinned by known-answer tests).
 cargo test
 
-# Create a ruleset from the example and run locally.
-cp rules.example.toml rules.toml
-cargo run -- --organization-id "$YOUR_ORG_ID" --rules-path rules.example.toml
+# Run locally with the example ruleset. This does not contact Turnkey.
+cargo run -- --organization-id local-development --rules-path rules.example.toml
 
 # In another shell:
 curl -s localhost:3000/health
@@ -106,11 +114,6 @@ TX=02f862018080808094111111111111111111111111111111111111111180b844a9059cbb00000
 curl -s -X POST localhost:3000/cosign -H 'content-type: application/json' \
   -d "{\"unsignedTransaction\":\"$TX\",\"signerAddress\":\"0x00000000000000000000000000000000000000a1\"}" | jq
 ```
-
-> Outside an enclave, `/qos.quorum.key` and `/qos.ephemeral.key` are absent, so
-> the app falls back to **insecure dev seeds** and warns loudly. The real keys
-> (and therefore the registered pubkeys) only appear once deployed, read them
-> from `GET /pubkeys` on the live enclave.
 
 ---
 
@@ -233,12 +236,41 @@ from the Turnkey dashboard. See the
 [Verifiable Cloud quickstart](https://docs.turnkey.com/features/verifiable-cloud/quickstart#create-your-first-verifiable-app)
 for the dashboard walkthrough. Approval is always done via the `tvc` CLI.
 
-### Step 4 — Create the TVC app
+### Step 4 — Create a custom quorum key and TVC app
+
+This example uses two hosted operators in both a 2-of-2 manifest set and a 2-of-2
+share set. Each operator belongs to a different user in the same organization;
+both users approve deployments and provision their own shares.
+
+Create your operator, keeping the same organization and CLI profile active
+throughout setup:
 
 ```bash
-tvc login                                  # generates an operator keypair
-tvc app init --output app.json             # set "name": "tvc-cosign"
+tvc login
+tvc operator create --name cosign-operator-1
+export OPERATOR_1_ID='<RETURNED_OPERATOR_1_ID>'
+```
+
+Have the other user create their operator in the same organization and share its
+Operator ID with you. Then create the quorum key:
+
+```bash
+export OPERATOR_2_ID='<OTHER_USERS_OPERATOR_ID>'
+tvc keys create-quorum-key --threshold 2 \
+  --operator-ids "$OPERATOR_1_ID,$OPERATOR_2_ID"
+# Save the returned Quorum Public Key for app.json.
+tvc app init --output app.json
+```
+
+Fill out `app.json` using the
+[custom quorum key app configuration guide](https://docs.turnkey.com/features/verifiable-cloud/manifest-sets-and-share-sets#create-the-app).
+Set the name to `tvc-cosign`, use the returned `quorumPublicKey`, and configure
+`manifestSetParams` and `shareSetParams` with both operator IDs and threshold 2.
+Keep `dangerousEnableDebugModeDeployments` set to `false`.
+
+```bash
 tvc app create --config-file app.json
+# Save the returned App ID for the deployment configuration.
 ```
 
 ### Step 5 — Create the deployment
@@ -251,6 +283,7 @@ Edit the generated `deploy-<timestamp>.json`:
 
 ```jsonc
 {
+  "appId":                  "<APP_UUID>",   // App ID from Step 4
   "qosVersion":             "0.12.0",       // LatestQosReleaseVersion
   "pivotContainerImageUrl": "ghcr.io/YOUR_GITHUB_USERNAME/tvc-cosign@sha256:<amd64-digest>",
   "pivotPath":              "/tvc-cosign",
@@ -288,36 +321,37 @@ org + one ruleset.
 
 ### Step 6 — Approve the manifest
 
-Passing `--deploy-id` is enough: `tvc deploy approve` fetches the manifest for that
-deployment (so it resolves the manifest ID itself) and resolves the operator ID and
-operator seed from your logged-in tvc profile (`~/.config/turnkey`, where
-`tvc app create` cached them). It then walks you through the interactive approval
-and posts it.
+Approve with your manifest operator. The command fetches the manifest, walks
+through its review, and posts your approval:
 
 ```bash
-tvc deploy approve --deploy-id <DEPLOY_ID>
+export DEPLOYMENT_ID='<DEPLOY_ID>'
+tvc deploy approve --deploy-id "$DEPLOYMENT_ID" --operator-id "$OPERATOR_1_ID"
 ```
 
-You only need the extra flags in specific cases:
+Share the Deployment ID with the other operator so they can run `tvc deploy approve`
+from their own CLI profile with the same Deployment ID and their operator ID.
+Both approvals are required before provisioning.
 
-- `--operator-id <OPERATOR_ID>` if your profile has **more than one** saved operator
-  (otherwise it auto-selects the single one, or prompts interactively). The operator
-  ID is printed by `tvc app create` as "Manifest Set Operator IDs" and stored under
-  `last_operator_ids` in `~/.config/turnkey`; it is **not** shown by `deploy status`.
-- `--manifest-id <MANIFEST_ID>` only if you approve from a manifest file
-  (`--manifest <path>`) instead of `--deploy-id`. When needed, the manifest ID *is*
-  shown by `tvc deploy status --deploy-id <DEPLOY_ID>`.
-- `--dangerous-skip-interactive` if you run without a TTY (CI); otherwise the
-  interactive approval prompts require a terminal.
+### Step 7 — Provision shares and go live
 
-### Step 7 — Go live
-
-The deployment reaches **LIVE** a few minutes after approval:
+Wait for attestation and manifest verification to succeed:
 
 ```bash
-tvc deploy status --deploy-id <DEPLOY_ID>          # wait for LIVE
+tvc deploy provisioning-details --deploy-id "$DEPLOYMENT_ID"
+```
+
+Then provision your share:
+
+```bash
+tvc deploy provision --deploy-id "$DEPLOYMENT_ID" --operator-id "$OPERATOR_1_ID"
+```
+
+The other operator should provision with their own share.
+
+```bash
 curl https://app-<APP_UUID>.turnkey.cloud/health   # → {"status":"ok"}
-curl https://app-<APP_UUID>.turnkey.cloud/pubkeys  # the REAL stamping keys
+curl https://app-<APP_UUID>.turnkey.cloud/pubkeys  # stamping public keys
 ```
 
 The `/pubkeys` values are the quorum-derived keys you register as API users in
@@ -501,24 +535,10 @@ format: `allowed_signers`, and a `[programmatic]` block (`allowed_tokens`,
 
 This is a POC. Known scope limits, all deliberate:
 
-- **Quorum-key provisioning: the stamping keys are not yet secret.** TVC currently
-  provisions every app with a **static, well-known quorum key** (custom
-  provisioning is "coming soon"). The programmatic and admin stamping keys are
-  HKDF-derived from that quorum key with public salts, so today anyone who knows
-  the well-known quorum key can re-derive both private keys. The programmatic
-  path's safety therefore does not rest on key secrecy: a party who derives the
-  programmatic key could stamp an arbitrary `SIGN_TRANSACTION` that the
-  programmatic policy (`activity.action == 'SIGN'`) allows, bypassing the enclave
-  ruleset (the ruleset only binds when the enclave itself stamps). Separately, a
-  quorum-key signature is not enclave-exclusive by design (the quorum key can be
-  provisioned into any conforming enclave), which is why enclave-exclusivity comes
-  from the **App Proof** (signed by the per-boot Ephemeral Key), not from the
-  stamp. Treat this deployment as **testnet / demo only** until custom (secret)
-  quorum-key provisioning is available; only then do the derived keys become
-  secret and the "only the attested enclave can stamp" property hold. Interim
-  mitigations: tighten the Turnkey programmatic policy (constrain `eth.tx.to` /
-  wallet / chain) so a leaked key can sign less, and verify the App Proof
-  out-of-band before acting on a stamp.
+- **A stamp identifies the app's signing key, not a particular enclave or build.**
+  The custom quorum key persists across deployments. Verify the **App Proof**
+  and its linked **Boot Proof** to bind a response to the expected enclave code
+  and ruleset. Scope Turnkey policies by wallet, chain, and recipient as needed.
 - **No caller authentication on `/cosign`.** Access is network-perimeter only.
   Anyone who can reach the endpoint can request a stamp; safety comes from the
   ruleset + the Turnkey-side policies, not from authenticating the caller. Put it
