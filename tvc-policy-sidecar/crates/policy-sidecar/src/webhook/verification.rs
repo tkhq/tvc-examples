@@ -11,7 +11,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 
 pub(super) const SIGNATURE_ALGORITHM: &str = "ed25519";
 pub(super) const SIGNATURE_VERSION: &str = "v1";
@@ -33,7 +33,6 @@ pub(super) const SIGNATURE_HEADER: &str = "x-turnkey-signature";
 /// A verified delivery's metadata.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct VerifiedDelivery {
-    pub(super) event_id: String,
     pub(super) organization_id: String,
     pub(super) event_type: String,
 }
@@ -77,7 +76,6 @@ pub(crate) struct WebhookVerifier {
     http_client: HttpClient,
     jwks_url: String,
     cache: Arc<RwLock<CachedVerificationKeys>>,
-    refresh_lock: Arc<Mutex<()>>,
 }
 
 struct CachedVerificationKeys {
@@ -94,7 +92,6 @@ impl WebhookVerifier {
                 keys: HashMap::new(),
                 expires_at: Instant::now(),
             })),
-            refresh_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -169,7 +166,6 @@ impl WebhookVerifier {
             .map_err(|_| WebhookVerificationError::InvalidSignature)?;
 
         Ok(VerifiedDelivery {
-            event_id,
             organization_id,
             event_type,
         })
@@ -180,14 +176,14 @@ impl WebhookVerifier {
         key_id: &str,
     ) -> Result<VerifyingKey, WebhookVerificationError> {
         let cache = self.cache.read().await;
-        let cache_is_current = Instant::now() < cache.expires_at;
-        if cache_is_current && let Some(key) = cache.keys.get(key_id) {
+        if Instant::now() < cache.expires_at
+            && let Some(key) = cache.keys.get(key_id)
+        {
             return Ok(*key);
         }
-        let force_refresh = cache_is_current;
         drop(cache);
 
-        self.refresh_keys(force_refresh).await?;
+        self.refresh_keys().await?;
         self.cache
             .read()
             .await
@@ -197,12 +193,7 @@ impl WebhookVerifier {
             .ok_or(WebhookVerificationError::UnknownKey)
     }
 
-    async fn refresh_keys(&self, force_refresh: bool) -> Result<(), WebhookVerificationError> {
-        let _refresh_guard = self.refresh_lock.lock().await;
-        if !force_refresh && Instant::now() < self.cache.read().await.expires_at {
-            return Ok(());
-        }
-
+    async fn refresh_keys(&self) -> Result<(), WebhookVerificationError> {
         let response = self
             .http_client
             .get(&self.jwks_url)
@@ -346,7 +337,6 @@ mod tests {
         assert_eq!(
             verifier.verify_at(&headers, body, now_ms).await,
             Ok(VerifiedDelivery {
-                event_id: "event-1".to_owned(),
                 organization_id: "organization-id".to_owned(),
                 event_type: ACTIVITY_UPDATES.to_owned(),
             })

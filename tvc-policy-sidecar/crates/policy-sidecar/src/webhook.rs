@@ -1,7 +1,6 @@
 //! Authenticate, evaluate, and submit a vote for one Turnkey activity delivery.
 
 mod activity;
-mod delivery;
 #[cfg(test)]
 mod test_support;
 mod verification;
@@ -13,7 +12,6 @@ use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
 };
-pub(crate) use delivery::DeliveryTracker;
 use std::time::{SystemTime, UNIX_EPOCH};
 pub(crate) use verification::WebhookVerifier;
 
@@ -51,16 +49,6 @@ pub(crate) async fn turnkey_activity_webhook(
         return Err(AppError::unauthorized(
             "webhook organization does not match this deployment",
         ));
-    }
-
-    let event_lock = state.delivery_tracker.lock_for(&delivery.event_id).await;
-    let _event_guard = event_lock.lock().await;
-    if state
-        .delivery_tracker
-        .is_completed(&delivery.event_id)
-        .await
-    {
-        return Ok(StatusCode::NO_CONTENT);
     }
 
     let decision = evaluate_activity(&activity)
@@ -112,7 +100,6 @@ pub(crate) async fn turnkey_activity_webhook(
             })?;
     }
 
-    state.delivery_tracker.complete(&delivery.event_id).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -128,7 +115,7 @@ mod tests {
     use tower::ServiceExt as _;
 
     #[tokio::test]
-    async fn endpoint_votes_with_quorum_key_and_suppresses_duplicates() {
+    async fn endpoint_votes_with_quorum_key_on_each_delivery() {
         let webhook_signing_key = SigningKey::from_bytes(&[4; 32]);
         let (base_url, captured_votes) = spawn_turnkey_server(webhook_signing_key.clone()).await;
         let quorum_key = P256Pair::generate().expect("quorum key should generate");
@@ -183,13 +170,11 @@ mod tests {
         assert_eq!(duplicate.status(), StatusCode::NO_CONTENT);
 
         let votes = captured_votes.lock().expect("captured votes lock poisoned");
-        assert_eq!(votes.len(), 1);
-        assert_eq!(votes[0].path, "approve");
-        verify_vote(
-            &votes[0],
-            "ACTIVITY_TYPE_APPROVE_ACTIVITY",
-            &expected_public_key,
-        );
+        assert_eq!(votes.len(), 2);
+        for vote in votes.iter() {
+            assert_eq!(vote.path, "approve");
+            verify_vote(vote, "ACTIVITY_TYPE_APPROVE_ACTIVITY", &expected_public_key);
+        }
     }
 
     #[tokio::test]
@@ -312,7 +297,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn concurrent_duplicates_submit_one_vote() {
+    async fn concurrent_duplicates_each_submit_a_vote() {
         let key = SigningKey::from_bytes(&[6; 32]);
         let (base_url, votes) = spawn_turnkey_server(key.clone()).await;
         let app = app_for_test(base_url);
@@ -330,11 +315,11 @@ mod tests {
             second.expect("second delivery should execute").status(),
             StatusCode::NO_CONTENT
         );
-        assert_eq!(votes.lock().expect("votes lock should succeed").len(), 1);
+        assert_eq!(votes.lock().expect("votes lock should succeed").len(), 2);
     }
 
     #[tokio::test]
-    async fn failed_vote_is_retried_before_marking_delivery_complete() {
+    async fn each_delivery_submits_a_vote_after_failure_or_success() {
         let key = SigningKey::from_bytes(&[7; 32]);
         let (base_url, votes) = spawn_turnkey_server_with_vote_statuses(
             key.clone(),
@@ -346,7 +331,7 @@ mod tests {
         for (expected_status, expected_attempts) in [
             (StatusCode::SERVICE_UNAVAILABLE, 1),
             (StatusCode::NO_CONTENT, 2),
-            (StatusCode::NO_CONTENT, 2),
+            (StatusCode::NO_CONTENT, 3),
         ] {
             let response = app
                 .clone()
