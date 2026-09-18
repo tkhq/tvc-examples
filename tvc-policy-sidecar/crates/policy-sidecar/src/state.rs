@@ -1,10 +1,6 @@
 //! Shared server state.
 
-use crate::client::HttpClient;
-use crate::{
-    turnkey_voter::TurnkeyVoter,
-    webhook::{DeliveryTracker, WebhookVerifier},
-};
+use crate::{client::HttpClient, turnkey_voter::TurnkeyVoter, webhook::WebhookVerifier};
 use qos_p256::P256Pair;
 use turnkey_api_key_stamper::TurnkeyP256ApiKey;
 
@@ -15,7 +11,6 @@ pub struct AppState {
     pub(crate) turnkey_organization_id: String,
     pub(crate) turnkey_voter: TurnkeyVoter,
     pub(crate) webhook_verifier: WebhookVerifier,
-    pub(crate) delivery_tracker: DeliveryTracker,
 }
 
 impl AppState {
@@ -41,7 +36,6 @@ impl AppState {
             turnkey_organization_id,
             turnkey_voter,
             webhook_verifier,
-            delivery_tracker: DeliveryTracker::new(),
         })
     }
 }

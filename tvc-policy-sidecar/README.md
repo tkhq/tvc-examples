@@ -235,9 +235,10 @@ checks organization binding, and votes using the supplied activity fingerprint.
 - Chain ID, expiration, balances, and account rotation/state are not checked.
   The demo assumes unrotated Ed25519 accounts. Address shape alone does not
   establish a chain or curve. The 10 APT limit is per transaction, not cumulative.
-- Duplicate handling is bounded, in memory, and per replica. It does not
-  survive restarts or coordinate replicas. Votes complete before webhook success;
-  there is no background queue.
+- Every eligible webhook delivery submits a vote. Votes complete before
+  webhook success; there is no background queue.
+- Webhook verification keys are cached, but concurrent cache misses can each
+  fetch the JWKS endpoint.
 - The quorum-derived public key stays stable while the quorum key is retained.
   Replacing that key requires updating the registered Turnkey credential.
 - This app returns no application proof. The ephemeral key is loaded for QOS
