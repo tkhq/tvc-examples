@@ -1,4 +1,8 @@
-use crate::{response::AppError, state::AppState};
+use crate::{
+    config::{ETH_USD_TEMPLATE_ID, SOURCE_AIRNODE},
+    response::AppError,
+    state::AppState,
+};
 use axum::{Json, extract::State};
 use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
@@ -8,10 +12,6 @@ use std::collections::HashMap;
 const COINGECKO_SIGNED_API_ROOT: &str = "https://signed-api.coingecko.com";
 const SOURCE_NAME: &str = "CoinGecko";
 const PAIR: &str = "ETH/USD";
-const SOURCE_AIRNODE: &str = "0x9dB03a07bE313B3C08261B1d1606D511f3560D9e";
-const ETH_USD_TEMPLATE_ID: &str =
-    "0xdeda2f7938bf877d2f011aa550852d3459794e16944ea0b7513465479752ba93";
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CertificationResponse {

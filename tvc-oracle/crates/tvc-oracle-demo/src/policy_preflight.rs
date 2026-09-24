@@ -1,14 +1,11 @@
 //! One-time, non-broadcast checks for the oracle updater's Turnkey policy.
 
-use crate::state::AppState;
+use crate::{config::UPDATER_ADDRESS, state::AppState};
 use std::io;
 use turnkey_client::{
     TurnkeyClientError,
     generated::immutable::{activity::v1::SignTransactionIntentV2, common::v1::TransactionType},
 };
-
-const ORGANIZATION_ID: &str = "e4c1c7b7-bcad-4467-ac4c-f34447f4cdcd";
-const UPDATER_ADDRESS: &str = "0x13A586dDB307E183aB167D4fB4a67536F8891D2f";
 
 struct Case {
     name: &'static str,
@@ -26,7 +23,7 @@ pub async fn run(state: &AppState) -> Result<(), Box<dyn std::error::Error>> {
         let result = state
             .turnkey_client
             .sign_transaction(
-                ORGANIZATION_ID.to_owned(),
+                state.turnkey_organization_id.clone(),
                 state.turnkey_client.current_timestamp(),
                 SignTransactionIntentV2 {
                     sign_with: UPDATER_ADDRESS.to_owned(),

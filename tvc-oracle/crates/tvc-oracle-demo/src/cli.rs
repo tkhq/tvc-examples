@@ -1,6 +1,8 @@
 //! CLI argument parsing for the TVC signed ETH/USD oracle server.
 use clap::Parser;
 
+use crate::config::{DEFAULT_SEPOLIA_RPC_URL, DEFAULT_TURNKEY_API_BASE_URL};
+
 /// TVC signed ETH/USD oracle server.
 #[derive(Parser, Debug)]
 #[command(name = "tvc-oracle-demo", version, about = "TVC signed ETH/USD oracle")]
@@ -20,6 +22,18 @@ pub struct Cli {
     /// Path to the ephemeral key file used for app proofs
     #[arg(long, default_value = qos_core::EPHEMERAL_KEY_FILE)]
     pub ephemeral_file: String,
+
+    /// Turnkey organization containing the policy-constrained updater account.
+    #[arg(long)]
+    pub turnkey_organization_id: String,
+
+    /// Base URL for the Turnkey API.
+    #[arg(long, default_value = DEFAULT_TURNKEY_API_BASE_URL)]
+    pub turnkey_api_base_url: String,
+
+    /// Ethereum Sepolia JSON-RPC endpoint.
+    #[arg(long, default_value = DEFAULT_SEPOLIA_RPC_URL)]
+    pub sepolia_rpc_url: String,
 
     /// Run the non-broadcast Turnkey policy matrix once before serving traffic.
     #[arg(long, default_value_t = false)]

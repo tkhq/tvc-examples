@@ -3,6 +3,7 @@ PORT ?= 44020
 LOCAL_ENCLAVE_DIR ?= /tmp/tvc-template-local-enclave
 EPHEMERAL_FILE ?= $(LOCAL_ENCLAVE_DIR)/qos.ephemeral.key
 QUORUM_FILE ?= $(LOCAL_ENCLAVE_DIR)/qos.quorum.key
+TURNKEY_ORGANIZATION_ID ?= local-development
 
 .PHONY: all
 all: build
@@ -37,7 +38,8 @@ run: local-keys
 	--host $(HOST) \
 	--port $(PORT) \
 	--ephemeral-file $(EPHEMERAL_FILE) \
-	--quorum-file $(QUORUM_FILE)
+	--quorum-file $(QUORUM_FILE) \
+	--turnkey-organization-id $(TURNKEY_ORGANIZATION_ID)
 
 out/tvc-oracle-demo/index.json: \
 	Cargo.lock Cargo.toml rust-toolchain.toml $(shell find images/tvc-oracle-demo crates -type f ! -path '*/target/*')

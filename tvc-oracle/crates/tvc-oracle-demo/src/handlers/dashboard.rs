@@ -1,15 +1,14 @@
 //! Human-readable oracle dashboard and machine-readable status.
 
 use crate::{
-    oracle_status::OracleRuntimeStatus, oracle_updater, response::AppError, state::AppState,
+    config::{ETH_USD_TEMPLATE_ID, ORACLE_ADDRESS, SOURCE_AIRNODE, UPDATER_ADDRESS},
+    oracle_status::OracleRuntimeStatus,
+    oracle_updater,
+    response::AppError,
+    state::AppState,
 };
 use axum::{Json, extract::State, response::Html};
 use serde::Serialize;
-
-const CONTRACT_ADDRESS: &str = "0x9890Df3894EbF1dbCD8E69aA7fafFBA089d8BF6b";
-const UPDATER_ADDRESS: &str = "0x13A586dDB307E183aB167D4fB4a67536F8891D2f";
-const SOURCE_AIRNODE: &str = "0x9dB03a07bE313B3C08261B1d1606D511f3560D9e";
-const TEMPLATE_ID: &str = "0xdeda2f7938bf877d2f011aa550852d3459794e16944ea0b7513465479752ba93";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,10 +39,10 @@ pub(crate) async fn oracle_status(
         network: "Ethereum Sepolia",
         source: "CoinGecko Signed API",
         pair: "ETH/USD",
-        contract_address: CONTRACT_ADDRESS,
+        contract_address: ORACLE_ADDRESS,
         updater_address: UPDATER_ADDRESS,
         source_airnode: SOURCE_AIRNODE,
-        template_id: TEMPLATE_ID,
+        template_id: ETH_USD_TEMPLATE_ID,
         contract,
         runtime,
     }))

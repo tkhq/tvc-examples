@@ -30,6 +30,7 @@ pub fn router_with_state(state: AppState) -> Router {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::config::{DEFAULT_SEPOLIA_RPC_URL, DEFAULT_TURNKEY_API_BASE_URL};
     use axum::{body::Body, http::StatusCode};
     use http_body_util::BodyExt;
     use qos_p256::{P256Pair, P256Public};
@@ -39,7 +40,14 @@ mod tests {
         let ephemeral_key = P256Pair::generate().expect("failed to generate ephemeral key");
         let quorum_key = P256Pair::generate().expect("failed to generate quorum key");
         router_with_state(
-            AppState::new(ephemeral_key, quorum_key).expect("failed to build app state"),
+            AppState::new(
+                ephemeral_key,
+                quorum_key,
+                "local-development".to_owned(),
+                DEFAULT_TURNKEY_API_BASE_URL.to_owned(),
+                DEFAULT_SEPOLIA_RPC_URL.to_owned(),
+            )
+            .expect("failed to build app state"),
         )
     }
 

@@ -26,7 +26,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| io::Error::other(format!("failed to load ephemeral key: {e:?}")))?;
     let quorum_key = P256Pair::from_hex_file(cli.quorum_file)
         .map_err(|e| io::Error::other(format!("failed to load quorum key: {e:?}")))?;
-    let app_state = AppState::new(ephemeral_key, quorum_key)?;
+    let app_state = AppState::new(
+        ephemeral_key,
+        quorum_key,
+        cli.turnkey_organization_id,
+        cli.turnkey_api_base_url,
+        cli.sepolia_rpc_url,
+    )?;
     if cli.oracle_update_interval_seconds == 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,

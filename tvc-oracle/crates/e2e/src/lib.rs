@@ -137,6 +137,8 @@ impl Builder {
             .arg(&ephemeral_key_path)
             .arg("--quorum-file")
             .arg(&quorum_key_path)
+            .arg("--turnkey-organization-id")
+            .arg("local-development")
             .spawn()
             .expect("failed to spawn tvc-oracle-demo binary")
             .into();

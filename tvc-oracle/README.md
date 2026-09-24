@@ -12,6 +12,7 @@ The Solidity contract repeats the same signature verification on-chain and store
 - [Endpoints](#endpoints)
 - [Getting the code](#getting-the-code)
 - [Prerequisites](#prerequisites)
+- [Configuration](#configuration)
 - [Development](#development)
 - [Building the TVC delivery image](#building-the-tvc-delivery-image)
 - [Project structure](#project-structure)
@@ -102,6 +103,18 @@ cd tvc-oracle
 - Docker 26 or newer with the containerd image store, for building the TVC delivery image
 - A Turnkey account with TVC access, for deployment
 
+## Configuration
+
+The runtime accepts the following deployment arguments. The Turnkey organization ID is required; the API and RPC URLs can be changed without rebuilding the attested binary.
+
+| Argument | Default / purpose |
+| --- | --- |
+| `--turnkey-organization-id` | Required; organization containing the policy-constrained updater account. |
+| `--turnkey-api-base-url` | `https://api.turnkey.com`; select another Turnkey environment explicitly when needed. |
+| `--sepolia-rpc-url` | `https://ethereum-sepolia-rpc.publicnode.com`; Ethereum Sepolia JSON-RPC endpoint. |
+| `--oracle-updates` | Enable immediate and periodic signed oracle updates. |
+| `--oracle-update-interval-seconds` | `86400`; interval after a successful update. |
+
 ## Development
 
 ### Run tests
@@ -143,7 +156,12 @@ Server starts on http://127.0.0.1:44020
 Autonomous updates are disabled locally by default. TVC enables them explicitly:
 
 ```sh
-/tvc_app --host 0.0.0.0 --port 3000 --oracle-updates --oracle-update-interval-seconds 86400
+/tvc_app \
+  --host 0.0.0.0 \
+  --port 3000 \
+  --turnkey-organization-id <TURNKEY_ORGANIZATION_ID> \
+  --oracle-updates \
+  --oracle-update-interval-seconds 86400
 ```
 
 The updater checks the contract before spending gas, retries transient failures after 15 minutes, and waits for a successful Sepolia receipt. For this demo, deploy one replica so there is one scheduler for the shared updater account.

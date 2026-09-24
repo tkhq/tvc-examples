@@ -2,6 +2,7 @@
 
 pub mod cli;
 mod client;
+mod config;
 mod handlers;
 mod oracle_status;
 pub mod oracle_updater;

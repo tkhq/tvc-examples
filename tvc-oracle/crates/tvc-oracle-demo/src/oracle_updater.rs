@@ -1,6 +1,7 @@
 //! Autonomous CoinGecko-to-Sepolia oracle update loop.
 
 use crate::{
+    config::{ORACLE_ADDRESS, SEPOLIA_CHAIN_ID, UPDATER_ADDRESS},
     handlers::{decode_fixed, fetch_verified_observation},
     state::AppState,
 };
@@ -12,11 +13,6 @@ use turnkey_client::generated::immutable::{
     activity::v1::SignTransactionIntentV2, common::v1::TransactionType,
 };
 
-const ORGANIZATION_ID: &str = "e4c1c7b7-bcad-4467-ac4c-f34447f4cdcd";
-const SEPOLIA_RPC_URL: &str = "https://ethereum-sepolia-rpc.publicnode.com";
-const SEPOLIA_CHAIN_ID: u64 = 11_155_111;
-const ORACLE_ADDRESS: &str = "0x9890Df3894EbF1dbCD8E69aA7fafFBA089d8BF6b";
-const UPDATER_ADDRESS: &str = "0x13A586dDB307E183aB167D4fB4a67536F8891D2f";
 const GAS_LIMIT: u64 = 200_000;
 const MAX_PRIORITY_FEE_PER_GAS: u64 = 1_000_000_000;
 const MAX_FEE_PER_GAS: u64 = 5_000_000_000;
@@ -121,7 +117,7 @@ async fn run_once(state: &AppState, interval: Duration) -> Result<CycleOutcome, 
     let signed = state
         .turnkey_client
         .sign_transaction(
-            ORGANIZATION_ID.to_owned(),
+            state.turnkey_organization_id.clone(),
             state.turnkey_client.current_timestamp(),
             SignTransactionIntentV2 {
                 sign_with: UPDATER_ADDRESS.to_owned(),
@@ -219,7 +215,7 @@ async fn rpc_string(state: &AppState, method: &str, params: Value) -> Result<Str
 async fn rpc(state: &AppState, method: &str, params: Value) -> Result<Value, DynError> {
     let response = state
         .http_client
-        .post(SEPOLIA_RPC_URL)
+        .post(&state.sepolia_rpc_url)
         .json(&json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}))
         .send()
         .await?;
