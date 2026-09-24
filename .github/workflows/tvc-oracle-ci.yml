@@ -1,0 +1,33 @@
+name: TVC Oracle CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "tvc-oracle/**"
+      - ".github/workflows/tvc-oracle-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "tvc-oracle/**"
+      - ".github/workflows/tvc-oracle-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tvc-oracle
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1.13.0
+        with:
+          components: clippy, rustfmt
+      - name: Run linters
+        run: make lint
+      - name: Run tests
+        run: make test

@@ -1,0 +1,36 @@
+[package]
+name = "tvc-oracle-demo"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+axum = { workspace = true, features = ["http1", "tokio", "json", "macros", "query"] }
+base64 = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tower-http = { workspace = true }
+reqwest = { workspace = true }
+metrics = { path = "../metrics" }
+p256 = { workspace = true }
+k256 = { workspace = true }
+qos_core = { workspace = true }
+qos_hex = { workspace = true, features = ["serde"] }
+qos_json = { workspace = true }
+qos_p256 = { workspace = true }
+rand = "0.9.1"
+serde = { workspace = true, features = ["derive"] }
+sha3 = { workspace = true }
+turnkey_api_key_stamper = { workspace = true }
+turnkey_client = { workspace = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tower = { workspace = true, features = ["util"] }
+http-body-util = { workspace = true }
