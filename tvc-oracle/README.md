@@ -152,7 +152,7 @@ The updater checks the contract before spending gas, retries transient failures 
 
 TVC executes and verifies the statically linked ELF binary at `/tvc_app`. The OCI image is the delivery envelope used to publish that binary; the deployment manifest pins both the image digest and the binary's SHA-256 digest.
 
-The monorepo's `Build TVC Oracle image` GitHub Actions workflow builds a single-platform `linux/amd64` StageX image, publishes it to `ghcr.io/<repository-owner>/tvc-oracle-demo`, and prints the exact TVC deployment values in the workflow summary.
+The monorepo's `Build TVC Oracle image` GitHub Actions workflow builds a single-platform `linux/amd64` StageX image, publishes it to `ghcr.io/<repository-owner>/tvc-oracle`, and prints the exact TVC deployment values in the workflow summary.
 
 ### Optional local build
 
