@@ -1,0 +1,10 @@
+out
+.claude
+target
+*.log
+local-enclave
+.tvc/
+contracts/cache/
+contracts/lib/
+contracts/broadcast/
+TVC_BUILD_NOTES.md
