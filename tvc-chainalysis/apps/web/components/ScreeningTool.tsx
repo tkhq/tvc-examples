@@ -5,17 +5,14 @@ import { useTurnkey } from "@turnkey/react-wallet-kit";
 import ProofBadge from "./ProofBadge";
 import { type AppProof, type BootProof } from "@/lib/tvc-app";
 
-interface Identification {
-  category: string | null;
-  name: string | null;
-  description: string | null;
-  url: string | null;
-}
-
 interface ScreenResult {
   address: string;
-  isSanctioned: boolean;
-  identifications: Identification[];
+  isThreat: boolean;
+  threatLevel: number;
+  hitUuid: string;
+  hashedAddress: string;
+  hashedInvestigation: string;
+  sanctioned: string;
   appProof: AppProof | null;
   bootProof: BootProof | null;
 }
@@ -84,8 +81,8 @@ export default function ScreeningTool() {
         <div>
           <h2 className="font-semibold text-lg">Screen an address</h2>
           <p className="text-sm text-muted mt-1">
-            Check any crypto address against OFAC sanctions lists via the
-            Chainalysis API, running inside a TVC enclave.
+            Check any crypto address against zeroShadow&apos;s Hermod
+            threat-intel graph — running inside a TVC enclave.
           </p>
         </div>
 
@@ -116,25 +113,27 @@ export default function ScreeningTool() {
           {/* Verdict */}
           <div
             className={`card flex items-start gap-4 border ${
-              result.isSanctioned
+              result.isThreat
                 ? "border-danger/40 bg-danger/5"
                 : "border-success/30 bg-success/5"
             }`}
           >
             <div
               className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-lg ${
-                result.isSanctioned ? "bg-danger/20" : "bg-success/20"
+                result.isThreat ? "bg-danger/20" : "bg-success/20"
               }`}
             >
-              {result.isSanctioned ? "🚫" : "✅"}
+              {result.isThreat ? "🚫" : "✅"}
             </div>
             <div>
               <p
                 className={`font-semibold ${
-                  result.isSanctioned ? "text-danger" : "text-success"
+                  result.isThreat ? "text-danger" : "text-success"
                 }`}
               >
-                {result.isSanctioned ? "Sanctioned address" : "No sanctions found"}
+                {result.isThreat
+                  ? `Threat detected (level ${result.threatLevel}${result.sanctioned ? " · " + result.sanctioned : ""})`
+                  : "No known threat"}
               </p>
               <p className="text-xs font-mono text-muted mt-0.5 break-all">
                 {result.address}
@@ -142,35 +141,34 @@ export default function ScreeningTool() {
             </div>
           </div>
 
-          {/* Identifications */}
-          {result.identifications.length > 0 && (
+          {/* Miss disclaimer — Hermod misses are point-in-time, never durable */}
+          {!result.isThreat && (
+            <div className="card border border-yellow-800/40 bg-yellow-900/10">
+              <p className="text-xs text-yellow-400 leading-relaxed">
+                <strong>Point-in-time result.</strong> Hermod did not flag this
+                address at the moment of this screen. Threat intel changes
+                continuously — this is not evidence of future safety. Screen
+                again before every transaction.
+              </p>
+            </div>
+          )}
+
+          {/* Hit details */}
+          {result.isThreat && (
             <div className="card space-y-3">
               <h3 className="text-sm font-medium text-muted uppercase tracking-wide">
-                Sanctions details
+                Hermod hit details
               </h3>
-              {result.identifications.map((id, i) => (
-                <div
-                  key={i}
-                  className="border border-surface-border rounded-lg p-3 space-y-1 text-sm"
-                >
-                  {id.name && <p className="font-medium">{id.name}</p>}
-                  {id.description && (
-                    <p className="text-muted text-xs leading-relaxed">
-                      {id.description}
-                    </p>
-                  )}
-                  {id.url && (
-                    <a
-                      href={id.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent text-xs hover:underline"
-                    >
-                      Source ↗
-                    </a>
-                  )}
-                </div>
-              ))}
+              <div className="border border-surface-border rounded-lg p-3 space-y-1 text-sm font-mono">
+                <DetailRow label="Threat level" value={`${result.threatLevel} / 10`} />
+                {result.sanctioned && (
+                  <DetailRow label="Sanctions" value={result.sanctioned} />
+                )}
+                {result.hitUuid && <DetailRow label="Hit UUID" value={result.hitUuid} />}
+                {result.hashedInvestigation && (
+                  <DetailRow label="Investigation" value={result.hashedInvestigation} />
+                )}
+              </div>
             </div>
           )}
 
@@ -208,7 +206,7 @@ export default function ScreeningTool() {
                 <div className="flex items-center gap-3 min-w-0">
                   <span
                     className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      item.isSanctioned ? "bg-danger" : "bg-success"
+                      item.isThreat ? "bg-danger" : "bg-success"
                     }`}
                   />
                   <span className="text-xs font-mono text-gray-300 truncate">
@@ -230,6 +228,15 @@ export default function ScreeningTool() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2 text-xs">
+      <span className="text-muted w-28 flex-shrink-0">{label}</span>
+      <span className="text-gray-300 break-all">{value}</span>
     </div>
   );
 }

@@ -1,6 +1,119 @@
-# TVC Sanctions Screener
+# TVC Threat Screener — powered by zeroShadow
+
+> **Phase 1 addendum (Hermod swap).** This example was originally the
+> **TVC Sanctions Screener** built on Chainalysis. Phase 1 replaces
+> Chainalysis with zeroShadow's **Hermod** threat-intel agent while keeping
+> everything else about the demo intact: passkey auth via Turnkey, an
+> enclave-signed app proof, the Turnkey boot proof, the reproducible-build
+> Dockerfile, and the SQLite audit log.
+>
+> The rest of this README still refers to the Chainalysis walkthrough
+> because those steps (Turnkey Auth Proxy setup, TVC deployment, boot-proof
+> flow) are unchanged. The parts that changed are called out in
+> **[Phase 1 changes](#phase-1-changes-chainalysis--hermod)** below —
+> read that first, then use the rest of the README for the surrounding
+> TVC/Turnkey setup, ignoring the Chainalysis-specific API key and URL bits.
+
+---
+
+## Phase 1 changes (Chainalysis → Hermod)
+
+### What was swapped
+
+- The enclave app no longer calls `public.chainalysis.com`. It now calls a
+  **Hermod agent** (`ghcr.io/zeroshadowhq/hermod` in production) at
+  `GET {HERMOD_URL}/addresses/<HMAC-SHA256(address, key)>`.
+- HTTP status is the primary hit/miss signal:
+  - **200** → known threat; response body carries `threat_level` (1–10),
+    `hit_uuid`, `hashed_address`, `hashed_investigation`, and an optional
+    `sanctioned` field (e.g. `"OFAC"`).
+  - **404** → not a known threat right now. **Misses are point-in-time**
+    and are never treated as durable "safe" verdicts — every transaction
+    must be screened again. The web UI surfaces this to end users.
+- The enclave signs the enriched result (address + isThreat + threat_level +
+  hashed_investigation + sanctioned) with the same ephemeral P-256 key path
+  used before. `proof.go`'s ephemeral-key loading and boot-key derivation
+  were **not touched** — only the payload struct changed. The in-browser
+  Web Crypto verifier continues to work without modification.
+- SQLite audit log kept its shape; the `screenings` table now stores
+  `is_threat`, `threat_level`, `hit_uuid`, `hashed_address`,
+  `hashed_investigation`, and `sanctioned_list` alongside the existing
+  proof columns.
+
+### New environment variables (replace `CHAINALYSIS_API_KEY`)
+
+Passed to the Go binary via flags or env vars — these belong in the TVC
+deployment manifest's `pivotArgs`, not in the Next.js runtime.
+
+| Variable | Purpose |
+|---|---|
+| `HERMOD_URL` | Base URL of the Hermod agent. Example: `http://hermod:8080` (sidecar) or `https://hermod.example.com` (external). |
+| `HERMOD_HMAC_KEY` | Per-account HMAC-SHA256 secret used to sign every address before it hits Hermod. **Never logged. Never sent to the browser.** Rotate on any suspected compromise. |
+| `HERMOD_API_KEY` | Optional bearer token for the Hermod agent. Sent as `Authorization: Bearer <key>` when set. |
+
+### Two connectivity options
+
+- **Option A — Hermod as a co-located sidecar.** Run the Hermod container
+  in the same TVC deployment as the pivot binary (or on the same host).
+  The TVC app talks to `http://hermod:<port>` over the local network. This
+  is the recommended posture for enclave demos because it keeps the
+  address→HMAC pairing off the public internet and does not require
+  `externalConnectivity` on the deployment.
+- **Option B — TVC app calls Hermod over the network.** Point `HERMOD_URL`
+  at an external Hermod instance (`https://hermod.example.com`). This
+  requires `externalConnectivity: true` on the TVC deployment so the
+  enclave can egress. Traffic must be TLS; the HMAC-signed URL path
+  hides the raw address from anyone who logs the URL but does not
+  substitute for transport security.
+
+### Correctness anchor — HMAC test vector
+
+`apps/tvc-app/hermod_test.go` locks in the Hermod-documented test vector:
+
+```
+address = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+key     = "key"
+sig     = fc1c0060a3158f2b690ed2e5faa5a6a324276a2c162505e91a14b7baf1419e05
+```
+
+If this ever fails, the client is generating signatures Hermod cannot
+match and every real lookup will look like a miss. Run:
+
+```bash
+cd apps/tvc-app && go test ./... -v
+```
+
+### What stayed the same
+
+- Passkey auth via the Turnkey Auth Proxy.
+- App proof (P-256 ephemeral key, ASN.1 DER signature, SHA-256 digest)
+  and in-browser verification path.
+- Boot proof lookup via `get_boot_proof` (same `bootEphemeralKey` shape).
+- Reproducible Docker build (pinned base image digests, `-trimpath`).
+- SQLite audit log via Drizzle in `apps/web/db/schema.ts`.
+- Directory name on disk is still `tvc-chainalysis/` in the monorepo to
+  minimize churn against upstream refs and CI paths. This will get a
+  proper rename in a follow-up if the swap ships.
+
+### Not covered by Phase 1
+
+- Building or publishing the Hermod sidecar container.
+- Signing address variants beyond lowercase / EIP-55 checksummed EVM. Both
+  are supported by the client; document your account-wide convention.
+- On-the-wire Hermod TLS/mutual-auth policy (bearer only, per spec).
+- Live TVC deployment verification. Phase 1 is code-level only; a real
+  deployment requires a Turnkey org with TVC access and a Hermod instance.
+
+---
+
+# TVC Sanctions Screener (original walkthrough)
 
 Verifiable on-chain sanctions screening powered by [Turnkey Verifiable Cloud](https://docs.turnkey.com/getting-started/verifiable-cloud-quickstart) and [Chainalysis](https://www.chainalysis.com/). Users authenticate with a passkey, submit any crypto address for OFAC screening, and receive a result alongside a cryptographic **app proof** and **boot proof** — evidence that the check ran inside a real AWS Nitro Enclave running the exact binary you deployed, signed by a key that never left the enclave.
+
+> **Reader note:** the sections below are the original Chainalysis
+> walkthrough, kept for reference. When following them for Phase 1, skip
+> the Chainalysis account/API-key steps and substitute the Hermod env
+> vars listed above wherever `CHAINALYSIS_API_KEY` is mentioned.
 
 **Live demo:** https://tvc-chainalysis.up.railway.app/
 

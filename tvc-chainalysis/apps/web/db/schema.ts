@@ -38,6 +38,16 @@ export const transactions = sqliteTable("transactions", {
     .default(sql`(datetime('now'))`),
 });
 
+// Screenings audit log — one row per Hermod check.
+//
+// The columns capture the enriched Hermod verdict alongside the enclave
+// proofs. `isThreat` is the top-line hit/miss signal (Hermod 200 vs 404).
+// `threatLevel`, `hitUuid`, `hashedInvestigation`, and `sanctionedList` are
+// only meaningful on a hit; on a miss they are stored as their zero values.
+//
+// IMPORTANT: A stored miss is a point-in-time record. It is NOT a durable
+// "safe" verdict. Consumers must not query this table to short-circuit
+// future screens for the same address.
 export const screenings = sqliteTable("screenings", {
   id: text("id").primaryKey(),
   userId: text("user_id")
@@ -47,11 +57,15 @@ export const screenings = sqliteTable("screenings", {
     .notNull()
     .references(() => transactions.id),
   address: text("address").notNull(),
-  isSanctioned: integer("is_sanctioned", { mode: "boolean" })
+  isThreat: integer("is_threat", { mode: "boolean" })
     .notNull()
     .default(false),
-  // JSON: Array of { category, name, description, url }
-  identifications: text("identifications").notNull(),
+  threatLevel: integer("threat_level").notNull().default(0),
+  hitUuid: text("hit_uuid"),
+  hashedAddress: text("hashed_address"),
+  hashedInvestigation: text("hashed_investigation"),
+  // Sanctions program string from Hermod (e.g. "OFAC"). Empty when not set.
+  sanctionedList: text("sanctioned_list"),
   proofScheme: text("proof_scheme"),
   proofPublicKey: text("proof_public_key"),
   proofPayload: text("proof_payload"),

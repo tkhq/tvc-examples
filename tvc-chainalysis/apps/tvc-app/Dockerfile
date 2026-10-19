@@ -3,7 +3,9 @@
 # To refresh: run `docker pull <new-tag>` then `docker inspect <new-tag> --format='{{index .RepoDigests 0}}'` and update the FROM line below
 FROM golang:1.26.4-alpine@sha256:7a3e50096189ad57c9f9f865e7e4aa8585ed1585248513dc5cda498e2f41812c AS builder
 
-# ca-certificates are needed for HTTPS egress (Chainalysis API call).
+# ca-certificates are needed for HTTPS egress when Hermod is reached over
+# TLS (e.g. deployed off-box with externalConnectivity enabled). If Hermod
+# runs as a plain-HTTP sidecar this is unused but harmless.
 RUN apk add --no-cache ca-certificates
 
 WORKDIR /app

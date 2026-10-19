@@ -10,7 +10,7 @@ export default function Header() {
         <div className="flex items-center gap-2">
           <span className="text-accent font-bold tracking-tight">TVC</span>
           <span className="text-muted text-sm hidden sm:inline">
-            Sanctions Screener
+            Threat Screener · powered by zeroShadow
           </span>
         </div>
 

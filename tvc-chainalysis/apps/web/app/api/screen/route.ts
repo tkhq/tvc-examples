@@ -57,9 +57,12 @@ export async function POST(req: NextRequest) {
     status: "pending",
   });
 
-  // Run the sanctions check via the TVC app (inside the Nitro enclave).
+  // Run the threat check via the TVC app (inside the Nitro enclave), which
+  // in turn queries zeroShadow's Hermod agent. A miss (404 from Hermod)
+  // is stored below for audit purposes ONLY — never treat it as durable
+  // proof of safety. Screening must run per-transaction.
   const screening = await screenAddress(destinationAddress);
-  const outcome = screening.isSanctioned ? "blocked" : "allowed";
+  const outcome = screening.isThreat ? "blocked" : "allowed";
 
   console.log("OUTCOME ➡️", outcome);
 
@@ -88,8 +91,12 @@ export async function POST(req: NextRequest) {
     userId: user.id,
     transactionId: txId,
     address: destinationAddress,
-    isSanctioned: screening.isSanctioned,
-    identifications: JSON.stringify(screening.identifications),
+    isThreat: screening.isThreat,
+    threatLevel: screening.threatLevel,
+    hitUuid: screening.hitUuid || null,
+    hashedAddress: screening.hashedAddress || null,
+    hashedInvestigation: screening.hashedInvestigation || null,
+    sanctionedList: screening.sanctioned || null,
     proofScheme: screening.appProof?.scheme ?? null,
     proofPublicKey: screening.appProof?.publicKey ?? null,
     proofPayload: screening.appProof?.proofPayload ?? null,
@@ -99,7 +106,7 @@ export async function POST(req: NextRequest) {
   });
 
   // Reflect the screening outcome on the transaction.
-  if (screening.isSanctioned) {
+  if (screening.isThreat) {
     await db
       .update(transactions)
       .set({ status: "blocked" })
@@ -108,8 +115,12 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     address: screening.address,
-    isSanctioned: screening.isSanctioned,
-    identifications: screening.identifications,
+    isThreat: screening.isThreat,
+    threatLevel: screening.threatLevel,
+    hitUuid: screening.hitUuid,
+    hashedAddress: screening.hashedAddress,
+    hashedInvestigation: screening.hashedInvestigation,
+    sanctioned: screening.sanctioned,
     appProof: screening.appProof,
     bootProof,
   });
@@ -129,8 +140,12 @@ export async function GET(req: NextRequest) {
       fromAddress: transactions.fromAddress,
       toAddress: transactions.toAddress,
       valueWei: transactions.valueWei,
-      isSanctioned: screenings.isSanctioned,
-      identifications: screenings.identifications,
+      isThreat: screenings.isThreat,
+      threatLevel: screenings.threatLevel,
+      hitUuid: screenings.hitUuid,
+      hashedAddress: screenings.hashedAddress,
+      hashedInvestigation: screenings.hashedInvestigation,
+      sanctionedList: screenings.sanctionedList,
       proofScheme: screenings.proofScheme,
       proofPublicKey: screenings.proofPublicKey,
       proofPayload: screenings.proofPayload,
@@ -148,15 +163,28 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     screenings: history.map(
-      ({ proofScheme, proofPublicKey, proofPayload, proofSignature, bootProof, identifications, ...rest }) => ({
+      ({
+        proofScheme,
+        proofPublicKey,
+        proofPayload,
+        proofSignature,
+        bootProof,
+        sanctionedList,
+        ...rest
+      }) => ({
         ...rest,
-        identifications: JSON.parse(identifications),
+        sanctioned: sanctionedList ?? "",
         appProof:
           proofScheme && proofPublicKey && proofPayload && proofSignature
-            ? { scheme: proofScheme, publicKey: proofPublicKey, proofPayload, signature: proofSignature }
+            ? {
+                scheme: proofScheme,
+                publicKey: proofPublicKey,
+                proofPayload,
+                signature: proofSignature,
+              }
             : null,
         bootProof: bootProof ? JSON.parse(bootProof) : null,
-      })
+      }),
     ),
   });
 }
