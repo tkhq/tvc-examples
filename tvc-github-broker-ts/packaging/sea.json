@@ -1,0 +1,7 @@
+{
+  "main": "dist/broker.cjs",
+  "output": "dist/broker.blob",
+  "disableExperimentalSEAWarning": true,
+  "useSnapshot": false,
+  "useCodeCache": false
+}

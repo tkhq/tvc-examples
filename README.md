@@ -9,6 +9,8 @@ This repository is a **monorepo**. Each example is a self-contained project in i
 - [tvc-chainalysis](tvc-chainalysis/README.md): Sanctions screening with a TVC app and web frontend.
 - [tvc-cosign](tvc-cosign/README.md): Classify EVM transactions and stamp Turnkey requests.
 - [tvc-policy-sidecar](tvc-policy-sidecar/README.md): Verify Turnkey activity webhooks and vote on signing requests of chains without parsing-support.
+- [tvc-github-broker-ts](tvc-github-broker-ts/README.md): A TypeScript MCP credential broker prototype with single-executable packaging. TVC deployment awaits environment support.
+- [tvc-github-broker-python](tvc-github-broker-python/README.md): The equivalent Python broker prototype with single-executable packaging and the same deployment dependency.
 
 ## Getting the code
 

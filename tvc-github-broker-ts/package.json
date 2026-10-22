@@ -1,0 +1,27 @@
+{
+  "name": "tvc-github-broker-ts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "check": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "bundle": "node packaging/bundle.mjs"
+  },
+  "engines": { "node": ">=24" },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "@modelcontextprotocol/node": "2.0.0",
+    "jose": "^6.1.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "postject": "^1.0.0-alpha.6",
+    "tsx": "^4.0.0",
+    "typescript": "^6.0.0"
+  }
+}

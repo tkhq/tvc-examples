@@ -1,0 +1,17 @@
+[project]
+name = "tvc-github-broker-python"
+version = "1.0.0"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp==2.0.0",
+    "httpx>=0.28,<1",
+    "PyJWT[crypto]>=2.10,<3",
+    "uvicorn>=0.35,<1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
