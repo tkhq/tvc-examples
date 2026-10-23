@@ -18,6 +18,11 @@ import (
 // (CGO_ENABLED=0) binary runs on a minimal image that ships no system trust
 // store, so there is no /etc/ssl/certs to read at runtime by design.
 //
+// The bundle is deliberately narrow: the only egress is public.chainalysis.com,
+// which chains to a Google Trust Services (GTS) root, so only the GTS roots
+// from the current Mozilla store are included. See the header of
+// ca-certificates.crt for the source snapshot, fingerprints, and how to refresh.
+//
 //go:embed ca-certificates.crt
 var caCertsPEM []byte
 
