@@ -8,8 +8,19 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 )
+
+// evmAddressRe matches a 0x-prefixed 20-byte (40 hex char) EVM address.
+var evmAddressRe = regexp.MustCompile(`^0x[0-9a-fA-F]{40}$`)
+
+// debugLog writes an operational log line. Enclave stdout/stderr is only
+// captured in debug-mode deployments (dangerousDeployDebugMode), so these
+// lines are visible during development and silently dropped in production.
+func debugLog(format string, args ...any) {
+	log.Printf(format, args...)
+}
 
 // screenRequest is the JSON body expected by POST /screen.
 type screenRequest struct {
@@ -102,20 +113,26 @@ func (s *server) handleScreen(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"address is required"}`, http.StatusBadRequest)
 		return
 	}
+	if !evmAddressRe.MatchString(req.Address) {
+		debugLog("rejected invalid address format: %q", req.Address)
+		http.Error(w, `{"error":"invalid EVM address format"}`, http.StatusBadRequest)
+		return
+	}
 
 	result, err := s.chainalysis.CheckAddress(r.Context(), req.Address)
 	if err != nil {
-		log.Printf("chainalysis error for %s: %v", req.Address, err)
+		debugLog("chainalysis error for %s: %v", req.Address, err)
 		http.Error(w, `{"error":"sanctions check failed"}`, http.StatusInternalServerError)
 		return
 	}
 
 	sanctioned := len(result.Identifications) > 0
 	identifications := result.Identifications
+	debugLog("screened %s: sanctioned=%v (%d identifications)", req.Address, sanctioned, len(identifications))
 
 	appProof, err := signScreening(s.signingKey, req.Address, sanctioned, identifications)
 	if err != nil {
-		log.Printf("WARNING: could not sign screening result: %v", err)
+		debugLog("WARNING: could not sign screening result: %v", err)
 	}
 
 	resp := screenResponse{

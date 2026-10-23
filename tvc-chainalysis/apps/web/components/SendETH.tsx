@@ -42,6 +42,15 @@ interface ScreenResult {
 
 type Status = "idle" | "screening" | "sanctioned" | "sending" | "sent";
 
+function isEvmAddress(value: string): boolean {
+  // Matches a 0x-prefixed 20-byte (40 hex char) EVM address — mirrors the
+  // server-side check in apps/tvc-app/main.go so malformed input is rejected
+  // before we call the TVC enclave.
+  const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+
+  return EVM_ADDRESS_RE.test(value);
+}
+
 function ethToHexWei(eth: string): string {
   const [whole = "0", frac = ""] = eth.split(".");
   const fracPadded = frac.padEnd(18, "0").slice(0, 18);
@@ -81,6 +90,10 @@ export default function SendETH() {
     const destination = to.trim();
 
     try {
+      if (!isEvmAddress(destination)) {
+        throw new Error("Destination must be an EVM address.");
+      }
+
       // Step 1 — screen the destination address via the TVC enclave.
       const res = await fetch("/api/screen", {
         method: "POST",
@@ -129,7 +142,7 @@ export default function SendETH() {
         console.log("🚱 insufficient funds");
         setError("Insufficient funds");
       } else {
-        setError("Unknown error");
+        setError(err instanceof Error ? err.message : "Unknown error");
       }
 
       setStatus("idle");
