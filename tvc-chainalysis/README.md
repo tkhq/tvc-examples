@@ -213,6 +213,8 @@ curl -X POST http://localhost:3000/screen \
 
 `CheckAddress` calls the Chainalysis Sanctions API for every address. Inside the enclave this requires TVC external connectivity (`externalConnectivity: true`) to be enabled so the app can reach `public.chainalysis.com`.
 
+TLS to that host is verified against a CA bundle compiled into the binary (`apps/tvc-app/ca-certificates.crt`), not the container filesystem, and the bundle is pinned to the Google Trust Services roots that `public.chainalysis.com` chains to. If Chainalysis ever moves to a different CA, screening will fail with an `x509: certificate signed by unknown authority` error until the bundle is refreshed; the file header explains how.
+
 This address is useful for testing a known result against the live API:
 
 | Address | Result |
