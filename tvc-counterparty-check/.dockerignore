@@ -1,0 +1,6 @@
+# Only these go into the build (see Dockerfile).
+*
+!package.json
+!package-lock.json
+!sea-config.json
+!src/
