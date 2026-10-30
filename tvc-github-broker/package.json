@@ -1,0 +1,25 @@
+{
+  "name": "tvc-github-broker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test tests/",
+    "typecheck": "tsc --noEmit",
+    "shim": "bun shim/src/server.ts",
+    "demo": "bun client/src/demo.ts",
+    "demo:local": "bun scripts/demo-local.ts",
+    "admin": "bun admin/src/cli.ts",
+    "demo:github": "bun scripts/demo-github.ts",
+    "shim:init": "bun shim/src/cli.ts init"
+  },
+  "dependencies": {
+    "@hpke/core": "1.7.4",
+    "@turnkey/api-key-stamper": "0.6.17",
+    "@turnkey/sdk-server": "8.5.0",
+    "jose": "6.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "typescript": "5.9.3"
+  }
+}

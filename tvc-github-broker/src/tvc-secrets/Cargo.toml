@@ -1,0 +1,25 @@
+[package]
+name = "tvc-secrets"
+description = "Turnkey Secrets export client for TVC apps: API-key stamping, EXPORT_SECRETS, Signer-signature verification, and in-process bundle decryption"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+hex = { workspace = true }
+# Stamps Turnkey API requests with the app user's P-256 API key.
+p256 = { workspace = true, features = ["ecdsa", "std"] }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+tracing = { workspace = true }
+# Turnkey's client for the enclave-encrypt transport used by EXPORT_SECRETS.
+# Pinned: 0.7 and later need qos_p256 0.12+, which needs rustc 1.94.
+turnkey_enclave_encrypt = { version = "=0.6.0", default-features = false }
+zeroize = { workspace = true }
+
+[lints]
+workspace = true

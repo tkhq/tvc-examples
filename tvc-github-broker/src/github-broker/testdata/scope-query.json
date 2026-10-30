@@ -1,0 +1,26 @@
+{
+  "comment": "Vectors for the broker scope query: the canonical query form that the github-broker requires for its token route (pairs sorted by key, then value; unreserved bytes literal, every other byte %XX uppercase). This is an app rule, not part of the http-authz/v1 profile, which compares the raw query byte for byte. A case without canonical must be rejected. Run by the github-broker unit tests and the TypeScript unit tests.",
+  "query": [
+    {"raw": "", "canonical": ""},
+    {"raw": "a=1", "canonical": "a=1"},
+    {"raw": "b=2&a=1", "canonical": "a=1&b=2"},
+    {"raw": "a=2&a=1", "canonical": "a=1&a=2"},
+    {"raw": "a", "canonical": "a="},
+    {"raw": "a=", "canonical": "a="},
+    {"raw": "a=x=y", "canonical": "a=x%3Dy"},
+    {"raw": "a=%7e", "canonical": "a=~"},
+    {"raw": "a=%2c", "canonical": "a=%2C"},
+    {"raw": "a=b,c", "canonical": "a=b%2Cc"},
+    {"raw": "a=b c", "canonical": "a=b%20c"},
+    {"raw": "a=b+c", "canonical": "a=b%2Bc"},
+    {"raw": "a=%E2%9C%93", "canonical": "a=%E2%9C%93"},
+    {"raw": "repositories=frontend&permissions=pull_requests%3Awrite&repositories=backend&permissions=contents%3Aread", "canonical": "permissions=contents%3Aread&permissions=pull_requests%3Awrite&repositories=backend&repositories=frontend"},
+    {"raw": "permissions=a1%3Aread&permissions=a%3Aread", "canonical": "permissions=a1%3Aread&permissions=a%3Aread"},
+    {"raw": "a=1&&b=2"},
+    {"raw": "a=1&"},
+    {"raw": "&a=1"},
+    {"raw": "=1"},
+    {"raw": "a=%zz"},
+    {"raw": "a=%2"}
+  ]
+}

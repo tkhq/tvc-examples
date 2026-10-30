@@ -1,0 +1,36 @@
+[package]
+name = "github-broker"
+description = "TVC app: GitHub App installation-token broker gated by http-authz/v1 JWTs"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+axum = { workspace = true, features = ["http1", "tokio", "json", "original-uri"] }
+base64 = { workspace = true }
+clap = { version = "4", features = ["derive", "env"] }
+# Token delivery suite: DHKEM(P-256, HKDF-SHA256), HKDF-SHA256, AES-256-GCM.
+# This is the same suite as Turnkey's enclave-encrypt transport.
+hpke = { version = "0.10", default-features = false, features = ["alloc", "p256"] }
+metrics = { path = "../metrics" }
+rand_core = { version = "0.6", features = ["getrandom"] }
+reqwest = { workspace = true }
+# RSA signing. Do not use the `rsa` crate for private key operations
+# (RUSTSEC-2023-0071).
+ring = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+# http-authz/v1 verifier and its Axum layer. Pinned to a commit of the Turnkey
+# Rust SDK until the crate is published to crates.io.
+turnkey_jwt_profiles = { git = "https://github.com/tkhq/rust-sdk", rev = "248b570fe943fd1c419bed1e60c303556500e953", features = ["axum"] }
+# EXPORT_SECRETS client: stamping, polling, Signer verification, decryption.
+tvc-secrets = { path = "../tvc-secrets" }
+zeroize = { workspace = true }
+
+[lints]
+workspace = true
