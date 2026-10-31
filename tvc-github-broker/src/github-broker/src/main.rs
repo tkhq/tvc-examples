@@ -3,6 +3,8 @@
 use std::process::ExitCode;
 use std::sync::Arc;
 
+use axum::routing::get;
+use axum::{Json, Router};
 use clap::Parser;
 use github_broker::appkey::AppKey;
 use github_broker::cli::Cli;
@@ -10,6 +12,7 @@ use github_broker::config::Config;
 use github_broker::credentials;
 use github_broker::github::GitHubClient;
 use github_broker::router::{self, AppState};
+use serde_json::json;
 use tracing_subscriber::EnvFilter;
 use turnkey_jwt_profiles::http_authz::Verifier;
 use turnkey_jwt_profiles::http_authz::jwks::PinnedKeySet;
@@ -35,11 +38,33 @@ fn trusted_kids(jwks: &[u8]) -> Result<Vec<String>, String> {
         .collect())
 }
 
+/// Serve the API public key and a health check, and nothing else.
+async fn bootstrap(cli: &Cli, api_public_key: String) -> Result<(), String> {
+    let app = Router::new()
+        .route(
+            "/health",
+            get(|| async { Json(json!({"status": "healthy"})) }),
+        )
+        .route(
+            "/v1/api-public-key",
+            get(move || async move { Json(json!({"api_public_key": api_public_key})) }),
+        );
+    let addr = format!("{}:{}", cli.host, cli.port);
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .map_err(|e| format!("bind {addr}: {e}"))?;
+    tracing::info!("bootstrap mode: serving the API public key on {addr}");
+    axum::serve(listener, app).await.map_err(|e| e.to_string())
+}
+
 async fn run(cli: Cli) -> Result<(), String> {
     let credentials = credentials::load(&cli)?;
     if cli.print_api_public_key {
         println!("{}", credentials.api_key.public_hex());
         return Ok(());
+    }
+    if cli.bootstrap {
+        return bootstrap(&cli, credentials.api_key.public_hex().to_owned()).await;
     }
     let config_bytes = match (&cli.config, &cli.config_json) {
         (Some(path), None) => {

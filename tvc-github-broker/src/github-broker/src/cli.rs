@@ -41,4 +41,10 @@ pub struct Cli {
     /// exit.
     #[arg(long)]
     pub print_api_public_key: bool,
+
+    /// Serve only `/health` and `/v1/api-public-key`, with no config and no
+    /// export. Use it for a first deployment: an enclave's API key is derived
+    /// from its quorum seed, so this is how you read the key to register.
+    #[arg(long, conflicts_with_all = ["config", "config_json"])]
+    pub bootstrap: bool,
 }

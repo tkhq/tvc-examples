@@ -45,8 +45,10 @@ In an enclave the broker needs no key file. QOS exposes the quorum seed (`/qos.q
 - The Turnkey API key is derived from the quorum seed, so only the enclave can stamp with it. Register its public key once as the broker's user:
 
   ```sh
-  # run inside the enclave, or read the `api_key` field in the broker's startup log
-  github-broker --print-api-public-key
+  # The key comes from the quorum seed, so it is only known once an enclave runs.
+  # Deploy once with --bootstrap, which serves only /health and /v1/api-public-key,
+  # and read the key from the app's public domain. Then deploy again with the config.
+  curl https://<public domain>/v1/api-public-key
   bun admin/src/cli.ts create-broker-user --public-key <hex>
   bun admin/src/cli.ts create-export-policy --broker-user-id <user id>
   ```
