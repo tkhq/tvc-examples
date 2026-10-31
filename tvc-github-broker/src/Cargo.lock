@@ -1885,10 +1885,13 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "hex",
+ "hkdf",
+ "hpke",
  "p256 0.13.2",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "tracing",
  "turnkey_enclave_encrypt",

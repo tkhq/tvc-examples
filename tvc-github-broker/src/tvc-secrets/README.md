@@ -7,10 +7,13 @@ Turnkey Secrets export client for TVC apps written in Rust.
 `SecretsClient::export_secret(secret_id)` runs one `EXPORT_SECRETS` in
 process and returns the plaintext as `SecretBytes`, which zeroizes on drop:
 
-1. Generates a P-256 HPKE target key in memory (Turnkey's
-   `turnkey_enclave_encrypt` crate, pinned to 0.6.0).
+1. Picks a P-256 HPKE target key: the encrypt key derived from the
+   enclave's ephemeral seed if the config has one
+   (`SecretsConfig::with_target_seed`), otherwise a fresh in-memory key
+   (Turnkey's `turnkey_enclave_encrypt` crate, pinned to 0.6.0).
 2. Submits `ACTIVITY_TYPE_EXPORT_SECRETS` with that target key, stamped with
-   the app user's API key (`X-Stamp`, `SIGNATURE_SCHEME_TK_API_P256`).
+   the app user's API key (`X-Stamp`, `SIGNATURE_SCHEME_TK_API_P256`). In an
+   enclave, `ApiKey::from_quorum_seed` derives that key from the quorum seed.
 3. Polls `get_activity` while the activity is `CREATED` or `PENDING`.
    `CONSENSUS_NEEDED` becomes `SecretsError::ConsensusNeeded`, `REJECTED` and
    HTTP 401/403 become `SecretsError::Denied`, anything else
@@ -58,14 +61,12 @@ secret material.
 
 ## Known gap
 
-The export target is not bound to the enclave's attestation. Policy for
-`EXPORT_SECRETS` can check the principal and the secret's static properties,
-but not the target public key, so anyone who holds the app user's API key
-can export the secret to a key they control. The fix is the planned
-enclave-target export,
-where Turnkey checks the NSM attestation document and the QOS manifest and
-policy can match manifest fields. Until then, the API key is as sensitive as
-the secrets it can export.
+Turnkey does not check the export target: `targetPublicKey` is just a key the
+caller supplies, and policy cannot match it. In an enclave, derive the API key
+from the quorum seed and export to the ephemeral key. Then only the quorum key
+can stamp the export, and the secret can only be read inside that enclave.
+Whoever holds the quorum key shares can derive the same API key. An attested
+enclave-target export would let Turnkey enforce this itself.
 
 Zeroization is best effort: this crate zeroizes its own buffers, but copies
 inside `turnkey_enclave_encrypt`, `serde_json`, and `reqwest` are not under

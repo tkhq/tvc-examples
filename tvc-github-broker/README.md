@@ -6,7 +6,7 @@ The broker accepts only a request-bound JWT from the http-authz/v1 profile of `A
 
 ## How it works
 
-1. The GitHub App key is stored in Turnkey Secret Storage. At startup the broker exports it into enclave memory with `EXPORT_SECRETS`, decrypts it in process, and never writes it to disk.
+1. The GitHub App key is stored in Turnkey Secret Storage. At startup the broker exports it with `EXPORT_SECRETS`, decrypts it in process, and never writes it to disk. In an enclave, the export is stamped with an API key derived from the app's quorum key, and the secret is encrypted to the enclave's ephemeral key, so only that enclave can read it.
 2. A client asks Turnkey for a JWT for `POST /v1/installations/{id}/tokens?permissions=...&repositories=...`, binding the method, path, query, the `accept` and `x-github-api-version` headers, and the body (which carries the client's HPKE public key).
 3. The client calls the broker with the JWT. The broker verifies the token, checks that it describes this exact request, and checks the scope against its allowlist.
 4. The broker signs a short-lived GitHub App JWT and asks GitHub for a token with exactly the requested scope. If GitHub grants more, the broker revokes the token and fails.
@@ -38,6 +38,23 @@ bun run demo
 
 The demo mints a JWT, calls the broker, decrypts the token, reads the repository with it, shows a wider scope and an altered request failing, and revokes the token. Compare the fingerprint that `import-app-key` prints with the one GitHub shows.
 
+## Deploy in TVC
+
+In an enclave the broker needs no key file. QOS exposes the quorum seed (`/qos.quorum.key`) and the per-boot ephemeral seed (`/qos.ephemeral.key`), and the broker derives from them:
+
+- The Turnkey API key is derived from the quorum seed, so only the enclave can stamp with it. Register its public key once as the broker's user:
+
+  ```sh
+  # run inside the enclave, or read the `api_key` field in the broker's startup log
+  github-broker --config <config> --print-api-public-key
+  bun admin/src/cli.ts create-broker-user --public-key <hex>
+  bun admin/src/cli.ts create-export-policy --broker-user-id <user id>
+  ```
+
+- The export target is the encrypt key derived from the ephemeral seed. QOS attests its public half in the enclave's Boot Proof, and a new one is used on every boot.
+
+Create the app with a custom quorum key (see the [`tvc-cosign`](../tvc-cosign/README.md) walkthrough), because the API key must stay the same across deployments. The demo runs the broker outside an enclave, with an API key file and a random target, which is only for local runs.
+
 ## Build the image
 
 The image is built with [StageX](https://stagex.tools) and needs Docker 26 or later with the containerd image store.
@@ -61,7 +78,7 @@ The broker reads a JSON config. `scripts/demo.ts` writes a complete one. It sets
 - The App key is never logged or written to disk, and is zeroized after use. RSA signing uses `ring`, not the `rsa` crate (RUSTSEC-2023-0071).
 - Tokens are not single-use. A replayed JWT yields a new token for the same exact request until `exp`. The new token is sealed to the original caller's key.
 - Policy can match the exact query string, but it cannot express a subset of repositories. The broker's allowlist therefore limits the repositories and permissions. Repository names must be lowercase, because GitHub matches names without case.
-- The broker reads its Turnkey API key from a file. This is a demo shortcut.
-- `EXPORT_SECRETS` is not yet bound to the enclave. Anyone holding the broker user's API key can export the key to a target of their choice.
+- In an enclave the API key is derived from the quorum seed and the export goes to the ephemeral key. Turnkey does not check that the export target is the ephemeral key, so what protects the App key is that only the quorum key can stamp the export, and the export policy covers one user and one secret. Whoever holds the quorum key shares can derive the API key.
+- In the local demo the API key is a file. Treat it as sensitive as the App key.
 - The broker serves plain HTTP and connects directly to GitHub and Turnkey. TLS termination and egress routing decide who can see the JWT. HPKE delivery protects the token either way.
 - The `turnkey_jwt_profiles` dependency is pinned to a Git commit of the Turnkey Rust SDK until the crate is on crates.io.

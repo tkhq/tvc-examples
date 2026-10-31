@@ -7,13 +7,13 @@ use clap::Parser;
 use github_broker::appkey::AppKey;
 use github_broker::cli::Cli;
 use github_broker::config::Config;
+use github_broker::credentials;
 use github_broker::github::GitHubClient;
 use github_broker::router::{self, AppState};
 use tracing_subscriber::EnvFilter;
 use turnkey_jwt_profiles::http_authz::Verifier;
 use turnkey_jwt_profiles::http_authz::jwks::PinnedKeySet;
-use tvc_secrets::{ApiKey, SecretsClient, SecretsConfig, SignerPublicKey};
-use zeroize::Zeroizing;
+use tvc_secrets::{SecretsClient, SecretsConfig, SignerPublicKey};
 
 /// The `kid` (RFC 7638 thumbprint) of each key in a JWK Set the key set already
 /// accepted.
@@ -36,6 +36,11 @@ fn trusted_kids(jwks: &[u8]) -> Result<Vec<String>, String> {
 }
 
 async fn run(cli: Cli) -> Result<(), String> {
+    let credentials = credentials::load(&cli)?;
+    if cli.print_api_public_key {
+        println!("{}", credentials.api_key.public_hex());
+        return Ok(());
+    }
     let config = Config::from_json(
         &std::fs::read(&cli.config).map_err(|e| format!("read {}: {e}", cli.config.display()))?,
     )?;
@@ -45,21 +50,17 @@ async fn run(cli: Cli) -> Result<(), String> {
     let keys = PinnedKeySet::from_jwks_json(&jwks).map_err(|e| e.to_string())?;
     let trusted_kids = trusted_kids(&jwks)?;
 
-    // Load the App key: EXPORT_SECRETS to an in-memory HPKE key, decrypt in
-    // process, parse, zeroize.
-    let api_key = {
-        let bytes = Zeroizing::new(
-            std::fs::read(&cli.turnkey_api_key_path)
-                .map_err(|e| format!("read {}: {e}", cli.turnkey_api_key_path.display()))?,
-        );
-        ApiKey::from_json(&bytes).map_err(|e| e.to_string())?
-    };
-    let secrets_config = SecretsConfig::new(
+    // Load the App key: EXPORT_SECRETS to the enclave's ephemeral key, decrypt
+    // in process, parse, zeroize.
+    let mut secrets_config = SecretsConfig::new(
         config.turnkey.api_base_url.clone(),
         config.turnkey.organization_id.clone(),
-        api_key,
+        credentials.api_key,
         SignerPublicKey::from_hex(&config.turnkey.signer_public_key).map_err(|e| e.to_string())?,
     );
+    if let Some(seed) = credentials.ephemeral_seed {
+        secrets_config = secrets_config.with_target_seed(seed);
+    }
     let secrets = SecretsClient::new(secrets_config).map_err(|e| e.to_string())?;
     tracing::info!(
         api = config.turnkey.api_base_url,

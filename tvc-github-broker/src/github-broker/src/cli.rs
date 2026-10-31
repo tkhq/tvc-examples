@@ -19,8 +19,21 @@ pub struct Cli {
     #[arg(long, env = "BROKER_CONFIG")]
     pub config: PathBuf,
 
-    /// Path to the app user's Turnkey API key JSON. The value is a path, but
-    /// the environment value is hidden from --help anyway.
+    /// QOS quorum seed. In an enclave, the Turnkey API key is derived from it.
+    #[arg(long, default_value = "/qos.quorum.key")]
+    pub quorum_key_path: PathBuf,
+
+    /// QOS ephemeral seed. In an enclave, the export target is derived from it.
+    #[arg(long, default_value = "/qos.ephemeral.key")]
+    pub ephemeral_key_path: PathBuf,
+
+    /// Turnkey API key JSON, for runs outside an enclave only. The value is a
+    /// path, but the environment value is hidden from --help anyway.
     #[arg(long, env = "TURNKEY_API_KEY_PATH", hide_env_values = true)]
-    pub turnkey_api_key_path: PathBuf,
+    pub turnkey_api_key_path: Option<PathBuf>,
+
+    /// Print the Turnkey API public key to register as the broker's user, then
+    /// exit.
+    #[arg(long)]
+    pub print_api_public_key: bool,
 }

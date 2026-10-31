@@ -9,11 +9,16 @@ rust-version.workspace = true
 [dependencies]
 base64 = { workspace = true }
 hex = { workspace = true }
+# Derives the API key and the export target from the QOS seeds.
+hkdf = { workspace = true }
+# The HPKE types of the export target. Same version as turnkey_enclave_encrypt.
+hpke = { workspace = true }
 # Stamps Turnkey API requests with the app user's P-256 API key.
 p256 = { workspace = true, features = ["ecdsa", "std"] }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 tracing = { workspace = true }
 # Turnkey's client for the enclave-encrypt transport used by EXPORT_SECRETS.

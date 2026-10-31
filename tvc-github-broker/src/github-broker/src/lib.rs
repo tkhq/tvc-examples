@@ -18,6 +18,7 @@
 //!   (path, query, headers, body), and pinned keys.
 //! - `tvc_secrets` (workspace crate): Turnkey API stamping and the
 //!   `EXPORT_SECRETS` call, Signer verification, and bundle decryption.
+//! - [`credentials`]: the Turnkey API key and export target, from the QOS seeds.
 //! - [`scope`]: repository and permission parsing, bounds, and the app-side
 //!   allowlist.
 //! - `query`: the canonical query form the token route requires.
@@ -31,6 +32,7 @@ pub mod appkey;
 pub mod b64;
 pub mod cli;
 pub mod config;
+pub mod credentials;
 pub mod delivery;
 pub mod github;
 mod query;

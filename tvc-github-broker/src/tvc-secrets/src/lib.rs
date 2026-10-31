@@ -2,7 +2,9 @@
 //!
 //! [`SecretsClient::export_secret`] runs the whole export in process:
 //!
-//! 1. generates a P-256 HPKE target key in memory (`turnkey_enclave_encrypt`);
+//! 1. picks a P-256 HPKE target key: the enclave's ephemeral encrypt key when
+//!    the config has the ephemeral seed ([`SecretsConfig::with_target_seed`]),
+//!    otherwise a fresh in-memory key (`turnkey_enclave_encrypt`);
 //! 2. submits `ACTIVITY_TYPE_EXPORT_SECRETS` for the secret, stamped with the
 //!    app user's API key, with that target public key;
 //! 3. polls the activity while it is `CREATED` or `PENDING`, and maps
@@ -33,6 +35,7 @@
 //! # }
 //! ```
 
+mod qos;
 mod secret;
 mod stamp;
 
@@ -43,6 +46,8 @@ use p256::ecdsa::VerifyingKey;
 use serde_json::{Value, json};
 use turnkey_enclave_encrypt::client::EnclaveEncryptClient;
 use turnkey_enclave_encrypt::errors::EnclaveEncryptError;
+
+pub use qos::{Seed, seed_from_hex};
 
 pub use secret::{SecretBytes, SecretString};
 pub use stamp::{ApiKey, STAMP_HEADER, STAMP_SCHEME};
@@ -196,6 +201,9 @@ pub struct SecretsConfig {
     pub poll_timeout: Duration,
     /// Per-request HTTP timeout.
     pub request_timeout: Duration,
+    /// The enclave's ephemeral seed. When set, the export target is the encrypt
+    /// key derived from it, not a fresh random key.
+    target_seed: Option<Seed>,
 }
 
 impl SecretsConfig {
@@ -213,7 +221,17 @@ impl SecretsConfig {
             signer_public_key,
             poll_timeout: DEFAULT_POLL_TIMEOUT,
             request_timeout: DEFAULT_REQUEST_TIMEOUT,
+            target_seed: None,
         }
+    }
+
+    /// Export to the encrypt key derived from the enclave's ephemeral seed.
+    /// QOS attests that key's public half in the Boot Proof, so the exported
+    /// secret can only be read inside that enclave.
+    #[must_use]
+    pub fn with_target_seed(mut self, seed: Seed) -> Self {
+        self.target_seed = Some(seed);
+        self
     }
 }
 
@@ -348,9 +366,14 @@ impl SecretsClient {
     /// failed activity, an unpinned Signer key, a bad signature, or a
     /// decryption failure.
     pub async fn export_secret(&self, secret_id: &str) -> Result<SecretBytes, SecretsError> {
-        let mut target = EnclaveEncryptClient::from_enclave_auth_key(
-            *self.cfg.signer_public_key.verifying_key(),
-        );
+        let signer = *self.cfg.signer_public_key.verifying_key();
+        let mut target = match &self.cfg.target_seed {
+            Some(seed) => {
+                let (public, private) = qos::target_key_pair(seed)?;
+                EnclaveEncryptClient::from_enclave_auth_key_and_target_key(signer, public, private)
+            }
+            None => EnclaveEncryptClient::from_enclave_auth_key(signer),
+        };
         let target_public = hex::encode(
             target
                 .target_bytes()
