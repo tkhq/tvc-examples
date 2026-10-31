@@ -30,8 +30,13 @@ pub struct Config {
     /// The app's top-level organization ID, a lowercase UUID without a prefix.
     /// A token's `iss` must name this organization.
     pub organization_id: String,
-    /// Pinned JWK Set with the trusted Signer key(s).
-    pub trusted_jwks_path: PathBuf,
+    /// Path to a pinned JWK Set with the trusted MINT_JWT signing key(s).
+    /// Give this or `trusted_jwks`.
+    #[serde(default)]
+    pub trusted_jwks_path: Option<PathBuf>,
+    /// The pinned JWK Set itself, for an enclave without a config file.
+    #[serde(default)]
+    pub trusted_jwks: Option<serde_json::Value>,
     /// Clock skew in seconds (at most 30).
     #[serde(default = "default_skew")]
     pub clock_skew_seconds: u64,
@@ -132,6 +137,9 @@ impl Config {
     /// Returns a message for the first invalid setting.
     pub fn from_json(bytes: &[u8]) -> Result<Self, String> {
         let c: Self = serde_json::from_slice(bytes).map_err(|e| format!("config: {e}"))?;
+        if c.trusted_jwks_path.is_some() == c.trusted_jwks.is_some() {
+            return Err("give exactly one of trusted_jwks_path and trusted_jwks".into());
+        }
         if !valid_origin(&c.audience) {
             return Err("audience must be an https origin (http only on loopback), no path".into());
         }
@@ -272,6 +280,18 @@ mod tests {
         let c = Config::from_json(v.to_string().as_bytes())?;
         c.allowlist()?;
         Ok(c)
+    }
+
+    #[test]
+    fn the_trusted_keys_come_from_a_path_or_inline_but_not_both() {
+        let mut v = config("4f0a3a8e-9d2b-4c61-8f57-2b1c6d0e7a11", "null");
+        assert!(parse(&v).is_ok());
+        v["trusted_jwks"] = serde_json::json!({"keys": []});
+        assert!(parse(&v).is_err());
+        v.as_object_mut().unwrap().remove("trusted_jwks_path");
+        assert!(parse(&v).is_ok());
+        v.as_object_mut().unwrap().remove("trusted_jwks");
+        assert!(parse(&v).is_err());
     }
 
     #[test]

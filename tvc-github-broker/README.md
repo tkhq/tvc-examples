@@ -46,7 +46,7 @@ In an enclave the broker needs no key file. QOS exposes the quorum seed (`/qos.q
 
   ```sh
   # run inside the enclave, or read the `api_key` field in the broker's startup log
-  github-broker --config <config> --print-api-public-key
+  github-broker --print-api-public-key
   bun admin/src/cli.ts create-broker-user --public-key <hex>
   bun admin/src/cli.ts create-export-policy --broker-user-id <user id>
   ```
@@ -67,7 +67,7 @@ The build prints the `SHA256` of `/tvc_app`, which TVC needs for the deployment.
 
 ## Configuration
 
-The broker reads a JSON config. `scripts/demo.ts` writes a complete one. It sets the audience (the broker's exact origin), `organization_id` (the top-level organization that `iss` must name), `trusted_jwks_path` (the MINT_JWT key set), the GitHub App client ID, the Turnkey secret to export, and `installations`, an allowlist of repositories and permission levels. Each installation can also be limited to some organizations. Set `detailed_auth_errors` to see why a token was rejected. Leave it off in production.
+The broker reads a JSON config. `scripts/demo.ts` writes a complete one. It sets the audience (the broker's exact origin), `organization_id` (the top-level organization that `iss` must name), `trusted_jwks_path` (the MINT_JWT key set), the GitHub App client ID, the Turnkey secret to export, and `installations`, an allowlist of repositories and permission levels. Each installation can also be limited to some organizations. In an enclave the image has no config file: pass the whole config as a pivot argument with `--config-json`, and give the key set inline as `trusted_jwks` instead of `trusted_jwks_path`. Set `detailed_auth_errors` to see why a token was rejected. Leave it off in production.
 
 ## Tests
 

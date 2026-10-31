@@ -16,8 +16,13 @@ pub struct Cli {
     pub port: u16,
 
     /// Path to the JSON configuration file
-    #[arg(long, env = "BROKER_CONFIG")]
-    pub config: PathBuf,
+    #[arg(long, env = "BROKER_CONFIG", conflicts_with = "config_json")]
+    pub config: Option<PathBuf>,
+
+    /// The JSON configuration itself, for an enclave where the image has no
+    /// config file. Pass it as a pivot argument so the manifest covers it.
+    #[arg(long, env = "BROKER_CONFIG_JSON", conflicts_with = "config")]
+    pub config_json: Option<String>,
 
     /// QOS quorum seed. In an enclave, the Turnkey API key is derived from it.
     #[arg(long, default_value = "/qos.quorum.key")]

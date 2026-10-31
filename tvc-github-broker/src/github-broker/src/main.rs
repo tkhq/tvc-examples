@@ -41,12 +41,22 @@ async fn run(cli: Cli) -> Result<(), String> {
         println!("{}", credentials.api_key.public_hex());
         return Ok(());
     }
-    let config = Config::from_json(
-        &std::fs::read(&cli.config).map_err(|e| format!("read {}: {e}", cli.config.display()))?,
-    )?;
+    let config_bytes = match (&cli.config, &cli.config_json) {
+        (Some(path), None) => {
+            std::fs::read(path).map_err(|e| format!("read {}: {e}", path.display()))?
+        }
+        (None, Some(json)) => json.clone().into_bytes(),
+        _ => return Err("pass --config or --config-json".into()),
+    };
+    let config = Config::from_json(&config_bytes)?;
     let allowlist = config.allowlist()?;
-    let jwks = std::fs::read(&config.trusted_jwks_path)
-        .map_err(|e| format!("read {}: {e}", config.trusted_jwks_path.display()))?;
+    let jwks = match (&config.trusted_jwks_path, &config.trusted_jwks) {
+        (Some(path), _) => {
+            std::fs::read(path).map_err(|e| format!("read {}: {e}", path.display()))?
+        }
+        (None, Some(jwks)) => jwks.to_string().into_bytes(),
+        (None, None) => return Err("no trusted JWK Set".into()),
+    };
     let keys = PinnedKeySet::from_jwks_json(&jwks).map_err(|e| e.to_string())?;
     let trusted_kids = trusted_kids(&jwks)?;
 
