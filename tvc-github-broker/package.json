@@ -9,7 +9,7 @@
     "admin": "bun admin/src/cli.ts"
   },
   "dependencies": {
-    "@hpke/core": "1.7.4",
+    "@hpke/core": "1.7.5",
     "@turnkey/api-key-stamper": "0.6.17",
     "@turnkey/sdk-server": "8.5.0",
     "jose": "6.1.0"
