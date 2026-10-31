@@ -1,0 +1,29 @@
+{
+  "name": "tvc-github-broker",
+  "quorumPublicKey": "<quorumPublicKey from `tvc keys create-quorum-key`>",
+  "enableEgress": true,
+  "manifestSetId": null,
+  "manifestSetParams": {
+    "name": "tvc-github-broker-manifest-set",
+    "threshold": 1,
+    "newOperators": [
+      {
+        "name": "operator-1",
+        "publicKey": "<your operator public key, from `tvc login`>"
+      }
+    ],
+    "existingOperatorIds": []
+  },
+  "shareSetId": null,
+  "shareSetParams": {
+    "name": "tvc-github-broker-share-set",
+    "threshold": 2,
+    "newOperators": [],
+    "existingOperatorIds": [
+      "<hosted operator 1 id>",
+      "<hosted operator 2 id>"
+    ]
+  },
+  "region": "us-east-1",
+  "dangerousEnableDebugModeDeployments": false
+}

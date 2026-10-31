@@ -1,0 +1,25 @@
+{
+  "audience": "https://app-<app id>.app.turnkey.cloud",
+  "organization_id": "<top-level organization id>",
+  "trusted_jwks": {
+    "keys": [
+      { "kty": "EC", "crv": "P-256", "x": "<x>", "y": "<y>", "kid": "<RFC 7638 thumbprint>", "alg": "ES256", "use": "sig" }
+    ]
+  },
+  "github": {
+    "app_client_id": "<Iv23li...>",
+    "expected_key_sha256": "<SHA256:... fingerprint GitHub shows for the key>"
+  },
+  "turnkey": {
+    "api_base_url": "https://api.turnkey.com",
+    "organization_id": "<organization that holds the secret>",
+    "secret_id": "<secret id printed by import-app-key>",
+    "signer_public_key": "<enclaveQuorumPublic from the admin probe command>"
+  },
+  "installations": {
+    "<installation id>": {
+      "repositories": ["<lowercase repo name>"],
+      "permissions": { "contents": "read", "metadata": "read" }
+    }
+  }
+}

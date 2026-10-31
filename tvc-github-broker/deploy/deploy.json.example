@@ -1,0 +1,12 @@
+{
+  "appId": "<app id from `tvc app create`>",
+  "qosVersion": "0.15.0",
+  "pivotContainerImageUrl": "ghcr.io/<owner>/tvc-github-broker@sha256:<image digest>",
+  "pivotPath": "/tvc_app",
+  "pivotArgs": ["--host", "0.0.0.0", "--port", "3000", "--bootstrap"],
+  "expectedPivotDigest": "<SHA256 of /tvc_app that the image build prints>",
+  "dangerousDeployDebugMode": false,
+  "healthCheckType": "TVC_HEALTH_CHECK_TYPE_HTTP",
+  "healthCheckPort": 3000,
+  "publicIngressPort": 3000
+}
