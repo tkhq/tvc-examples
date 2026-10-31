@@ -1,6 +1,5 @@
 [workspace]
 members = [
-  "metrics",
   "tvc-secrets",
   "github-broker",
 ]
@@ -26,7 +25,6 @@ missing_docs = "warn"
 axum = { version = "0.8.8", default-features = false }
 base64 = "0.22"
 hex = "0.4"
-http = "1"
 p256 = { version = "0.13", default-features = false }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots", "json"] }
 # RSA signing and ES256 verification. Do not use the `rsa` crate for private
@@ -38,8 +36,4 @@ zeroize = "1"
 tokio = { version = "1.47", default-features = false }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tower = { version = "0.5", default-features = false }
 tower-http = { version = "0.6", features = ["trace"] }
-http-body-util = "0.1"
-pin-project-lite = "0.2"
-prometheus = { version = "0.13", default-features = false }

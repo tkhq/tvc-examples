@@ -55,7 +55,7 @@ pub struct Config {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GitHubConfig {
-    /// API base URL, for example `https://api.github.com` or a mock.
+    /// API base URL, for example `https://api.github.com`.
     #[serde(default = "default_github_api")]
     pub api_base_url: String,
     /// App client ID (or numeric app ID); the App JWT `iss`.

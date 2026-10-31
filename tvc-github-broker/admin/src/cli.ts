@@ -1,14 +1,10 @@
 /**
- * Admin tool.
+ * Admin tool for a Turnkey organization.
  *
- * Modes:
- * - default: the local shim. Env: SHIM_URL (default http://127.0.0.1:8081),
- *   SHIM_STATE_DIR (default .shim). Uses the shim's root key and its enclave
- *   signer key.
- * - `--live-secrets`: real Turnkey. Env: TURNKEY_API_BASE_URL (default the dev
- *   API), TURNKEY_ORGANIZATION_ID, TURNKEY_API_KEY_FILE (an admin/root key,
- *   read only by this process), TURNKEY_SIGNER_PUBLIC_KEY (hex; required
- *   outside production, where the SDK's pinned production key does not apply).
+ * Environment: TURNKEY_ORGANIZATION_ID, TURNKEY_API_KEY_FILE (an admin or root
+ * API key, read only by this process), TURNKEY_API_BASE_URL (default
+ * https://api.turnkey.com), and TURNKEY_SIGNER_PUBLIC_KEY (hex; needed outside
+ * production, where the SDK's pinned production key does not apply).
  *
  * Commands:
  *   gen-test-key --out <pem>                     throwaway RSA-2048 PKCS#1 (never a real App key)
@@ -23,14 +19,12 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { Turnkey } from "@turnkey/sdk-server";
 import { generateApiKey } from "../../lib/p256.ts";
-import { loadState } from "../../shim/src/state.ts";
-import { exportPolicy, generateThrowawayPem, importAppKey, keyFingerprint } from "./appkey.ts";
+import { exportPolicy, generateThrowawayPem, importAppKey, keyFingerprint, SECRET_SCHEMA } from "./appkey.ts";
 import { DEFAULT_API_BASE_URL, readApiKeyFile, requireEnv } from "./turnkey.ts";
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
   options: {
-    "live-secrets": { type: "boolean", default: false },
     out: { type: "string" },
     pem: { type: "string" },
     "app-client-id": { type: "string" },
@@ -40,19 +34,11 @@ const { positionals, values } = parseArgs({
 });
 
 async function connect() {
-  if (values["live-secrets"]) {
-    const organizationId = requireEnv("TURNKEY_ORGANIZATION_ID");
-    const apiBaseUrl = process.env.TURNKEY_API_BASE_URL ?? DEFAULT_API_BASE_URL;
-    const k = readApiKeyFile(requireEnv("TURNKEY_API_KEY_FILE"));
-    const client = new Turnkey({ apiBaseUrl, apiPublicKey: k.publicKey, apiPrivateKey: k.privateKey, defaultOrganizationId: organizationId }).apiClient();
-    return { client, organizationId, apiBaseUrl, signerPublicKey: process.env.TURNKEY_SIGNER_PUBLIC_KEY };
-  }
-  const dir = process.env.SHIM_STATE_DIR ?? ".shim";
-  const st = await loadState(dir);
-  const k = readApiKeyFile(path.join(dir, "keys", "root.json"));
-  const apiBaseUrl = process.env.SHIM_URL ?? "http://127.0.0.1:8081";
-  const client = new Turnkey({ apiBaseUrl, apiPublicKey: k.publicKey, apiPrivateKey: k.privateKey, defaultOrganizationId: st.org.organizationId }).apiClient();
-  return { client, organizationId: st.org.organizationId, apiBaseUrl, signerPublicKey: st.enclaveSignerPublicKey };
+  const organizationId = requireEnv("TURNKEY_ORGANIZATION_ID");
+  const apiBaseUrl = process.env.TURNKEY_API_BASE_URL ?? DEFAULT_API_BASE_URL;
+  const k = readApiKeyFile(requireEnv("TURNKEY_API_KEY_FILE"));
+  const client = new Turnkey({ apiBaseUrl, apiPublicKey: k.publicKey, apiPrivateKey: k.privateKey, defaultOrganizationId: organizationId }).apiClient();
+  return { client, organizationId, apiBaseUrl, signerPublicKey: process.env.TURNKEY_SIGNER_PUBLIC_KEY };
 }
 
 const need = (k: keyof typeof values) => {
@@ -74,7 +60,7 @@ switch (positionals[0]) {
   case "import-app-key": {
     const c = await connect();
     const r = await importAppKey({ client: c.client, organizationId: c.organizationId, pemPath: need("pem"), appClientId: need("app-client-id"), name: values.name, signerPublicKey: c.signerPublicKey });
-    print({ api: c.apiBaseUrl, organizationId: c.organizationId, ...r, staticProperties: { "demo:schema": "github-app-key-v1", "github:app_client_id": values["app-client-id"], "github:key_sha256": r.fingerprint } });
+    print({ api: c.apiBaseUrl, organizationId: c.organizationId, ...r, staticProperties: { "demo:schema": SECRET_SCHEMA,"github:app_client_id": values["app-client-id"], "github:key_sha256": r.fingerprint } });
     console.error("Delete the PEM file now if it is a real App key. Compare the fingerprint with the one GitHub shows.");
     break;
   }
@@ -114,6 +100,6 @@ switch (positionals[0]) {
     await import("./probe.ts");
     break;
   default:
-    console.error("usage: bun admin/src/cli.ts [--live-secrets] gen-test-key|import-app-key|create-broker-user|create-export-policy|list-secrets|probe");
+    console.error("usage: bun admin/src/cli.ts gen-test-key|import-app-key|create-broker-user|create-export-policy|list-secrets|probe");
     process.exit(2);
 }

@@ -1,5 +1,5 @@
 {
-  "comment": "Vectors for the broker scope query: the canonical query form that the github-broker requires for its token route (pairs sorted by key, then value; unreserved bytes literal, every other byte %XX uppercase). This is an app rule, not part of the http-authz/v1 profile, which compares the raw query byte for byte. A case without canonical must be rejected. Run by the github-broker unit tests and the TypeScript unit tests.",
+  "comment": "Vectors for the broker scope query: the canonical query form that the github-broker requires for its token route (pairs sorted by key, then value; unreserved bytes literal, every other byte %XX uppercase). This is an app rule, not part of the http-authz/v1 profile, which compares the raw query byte for byte. A case without canonical must be rejected. Run by the github-broker unit tests. Other implementations should run them too.",
   "query": [
     {"raw": "", "canonical": ""},
     {"raw": "a=1", "canonical": "a=1"},

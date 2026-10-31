@@ -10,9 +10,9 @@
  */
 import { sha256Digest } from "./digest.ts";
 
-export const MAX_HEADER_NAMES = 32;
+const MAX_HEADER_NAMES = 32;
 /** Never bound. HTTP/2 pseudo-headers (leading `:`) are also refused. */
-export const FORBIDDEN_HEADER_NAMES = [
+const FORBIDDEN_HEADER_NAMES = [
   "authorization",
   "connection",
   "host",
@@ -25,7 +25,7 @@ export const FORBIDDEN_HEADER_NAMES = [
   "upgrade",
 ];
 /** RFC 9110 tchar symbols, escaped for a regex character class. */
-export const TCHAR_SYMBOLS = "!#$%&'*+\\-.^_`|~";
+const TCHAR_SYMBOLS ="!#$%&'*+\\-.^_`|~";
 const TOKEN = new RegExp(`^[${TCHAR_SYMBOLS}0-9a-z]+$`);
 const VALUE = /^[\t\x20-\x7e]*$/;
 

@@ -53,4 +53,4 @@ test:
 .PHONY: demo
 demo:
 	cargo build --manifest-path src/Cargo.toml --bin github-broker
-	bun run demo:local
+	bun run demo

@@ -10,7 +10,7 @@ import { type Bytes, te } from "./encoding.ts";
 
 const UNRESERVED = /^[A-Za-z0-9\-._~]$/;
 
-export function percentEncode(bytes: Bytes): string {
+function percentEncode(bytes: Bytes): string {
   let out = "";
   for (const b of bytes) {
     const c = String.fromCharCode(b);
@@ -20,7 +20,7 @@ export function percentEncode(bytes: Bytes): string {
 }
 
 /** Decode %XX escapes only; `+` is literal. Operates on the string's UTF-8 bytes. */
-export function percentDecode(s: string): Bytes {
+function percentDecode(s: string): Bytes {
   const src = te.encode(s);
   const out: number[] = [];
   for (let i = 0; i < src.length; ) {
@@ -62,11 +62,6 @@ export function canonicalQuery(raw: string): string {
   return decodedPairs(raw)
     .map(([k, v]) => `${percentEncode(k)}=${percentEncode(v)}`)
     .join("&");
-}
-
-export function queryPairs(raw: string): [string, string][] {
-  const dec = new TextDecoder("utf-8", { fatal: true });
-  return decodedPairs(raw).map(([k, v]) => [dec.decode(k), dec.decode(v)]);
 }
 
 /**

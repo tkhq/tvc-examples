@@ -16,13 +16,13 @@ export function keyFingerprint(pem: string): string {
 }
 
 /** Validate that a PEM is a PKCS#1 RSA-2048 private key, as GitHub issues. */
-export function checkGitHubPem(pem: string): void {
+function checkGitHubPem(pem: string): void {
   if (!pem.includes("-----BEGIN RSA PRIVATE KEY-----")) throw new Error("expected a PKCS#1 'RSA PRIVATE KEY' PEM (GitHub's download format)");
   const k = crypto.createPrivateKey(pem);
   if (k.asymmetricKeyType !== "rsa" || k.asymmetricKeyDetails?.modulusLength !== 2048) throw new Error("expected an RSA-2048 key");
 }
 
-/** A throwaway RSA-2048 key in GitHub's format, for tests and dev-environment proofs. Never a real App key. */
+/** A throwaway RSA-2048 key in GitHub's format, for tests and the gen-test-key command. Never a real App key. */
 export function generateThrowawayPem(): { pem: string; publicSpkiPem: string } {
   const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
     modulusLength: 2048,

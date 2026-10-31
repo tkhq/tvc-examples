@@ -9,7 +9,6 @@ use github_broker::cli::Cli;
 use github_broker::config::Config;
 use github_broker::github::GitHubClient;
 use github_broker::router::{self, AppState};
-use metrics::MetricsLayer;
 use tracing_subscriber::EnvFilter;
 use turnkey_jwt_profiles::http_authz::Verifier;
 use turnkey_jwt_profiles::http_authz::jwks::PinnedKeySet;
@@ -106,14 +105,7 @@ async fn run(cli: Cli) -> Result<(), String> {
         trusted_kids,
     });
 
-    let metrics_layer = MetricsLayer::builder()
-        .namespace("tvc")
-        .build()
-        .map_err(|e| e.to_string())?;
-    let collector = metrics_layer.collector();
-    let app = router::router(state)
-        .layer(metrics_layer)
-        .route("/metrics", metrics::handler(collector));
+    let app = router::router(state);
 
     let addr = format!("{}:{}", cli.host, cli.port);
     let listener = tokio::net::TcpListener::bind(&addr)

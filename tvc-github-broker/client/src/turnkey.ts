@@ -1,8 +1,6 @@
 /**
- * Client side of MINT_JWT. Builds and stamps the activity with the real
- * Turnkey API-key stamper. The demo scripts send it to the local stand-in; the
- * request has Turnkey's wire shape, so it also works against Turnkey for an
- * organization that is allowed to mint.
+ * Client side of MINT_JWT. Builds and stamps the activity with the Turnkey
+ * API-key stamper. The organization must allow the user to mint.
  */
 import fs from "node:fs";
 import { ApiKeyStamper } from "@turnkey/api-key-stamper";
@@ -17,7 +15,7 @@ export function readKeyFile(file: string): ApiKeyFile {
   return { publicKey: d.publicKey ?? d.public_key, privateKey: d.privateKey ?? d.private_key };
 }
 
-export type MintRequest = {
+type MintRequest = {
   organizationId: string;
   audience: string;
   httpAuthzV1: HttpAuthzV1;
@@ -27,7 +25,7 @@ export type MintResult =
   | { ok: true; jwt: string; activityId: string; fingerprint: string }
   | { ok: false; status: number; activityStatus?: string; message: string };
 
-export async function submit(baseUrl: string, key: ApiKeyFile, path: string, body: unknown): Promise<{ status: number; json: any }> {
+async function submit(baseUrl: string, key: ApiKeyFile, path: string, body: unknown): Promise<{ status: number; json: any }> {
   const text = JSON.stringify(body);
   const stamp = await new ApiKeyStamper({ apiPublicKey: key.publicKey, apiPrivateKey: key.privateKey }).stamp(text);
   const resp = await fetch(baseUrl + path, {
@@ -38,8 +36,8 @@ export async function submit(baseUrl: string, key: ApiKeyFile, path: string, bod
   return { status: resp.status, json: await resp.json().catch(() => ({})) };
 }
 
-export async function mintJwt(shimUrl: string, key: ApiKeyFile, r: MintRequest): Promise<MintResult> {
-  const { status, json } = await submit(shimUrl, key, "/public/v1/submit/mint_jwt", {
+export async function mintJwt(apiBaseUrl: string, key: ApiKeyFile, r: MintRequest): Promise<MintResult> {
+  const { status, json } = await submit(apiBaseUrl, key, "/public/v1/submit/mint_jwt", {
     type: ACTIVITY_TYPE,
     timestampMs: String(Date.now()),
     organizationId: r.organizationId,

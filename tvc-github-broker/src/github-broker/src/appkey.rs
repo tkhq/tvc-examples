@@ -1,8 +1,8 @@
 //! GitHub App private key: PKCS#1 PEM to a `ring` RSA key.
 //!
 //! GitHub downloads App keys as PKCS#1 (`-----BEGIN RSA PRIVATE KEY-----`).
-//! This module decodes the PEM itself so that every intermediate buffer is a
-//! `Zeroizing` value. `ring` then holds the key; `ring` uses constant-time
+//! This module decodes the PEM itself and keeps the buffers it owns in
+//! `Zeroizing` values. `ring` then holds the key; `ring` uses constant-time
 //! RSA code. The `rsa` crate is not used (RUSTSEC-2023-0071).
 
 use std::fmt;

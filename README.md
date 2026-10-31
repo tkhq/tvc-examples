@@ -8,7 +8,7 @@ This repository is a **monorepo**. Each example is a self-contained project in i
 
 - [tvc-chainalysis](tvc-chainalysis/README.md): Sanctions screening with a TVC app and web frontend.
 - [tvc-cosign](tvc-cosign/README.md): Classify EVM transactions and stamp Turnkey requests.
-- [tvc-github-broker](tvc-github-broker/README.md): Broker GitHub App installation tokens, narrowed to named repositories and permissions, behind Turnkey-minted request-bound JWTs.
+- [tvc-github-broker](tvc-github-broker/README.md): Broker narrowed GitHub App installation tokens, gated by Turnkey-minted request-bound JWTs.
 - [tvc-oracle](tvc-oracle/README.md): Publish verified, signed ETH/USD observations to Ethereum Sepolia.
 - [tvc-policy-sidecar](tvc-policy-sidecar/README.md): Verify Turnkey activity webhooks and vote on signing requests of chains without parsing-support.
 

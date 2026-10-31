@@ -12,7 +12,7 @@
 //!   empty keys are errors. Pairs are sorted by key bytes, then value bytes,
 //!   and duplicates are kept.
 //!
-//! The TypeScript client runs the same vectors (`testdata/scope-query.json`).
+//! Other implementations should run the same vectors in `testdata/scope-query.json`.
 
 fn is_unreserved(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~')

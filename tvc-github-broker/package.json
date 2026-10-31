@@ -5,12 +5,8 @@
   "scripts": {
     "test": "bun test tests/",
     "typecheck": "tsc --noEmit",
-    "shim": "bun shim/src/server.ts",
-    "demo": "bun client/src/demo.ts",
-    "demo:local": "bun scripts/demo-local.ts",
-    "admin": "bun admin/src/cli.ts",
-    "demo:github": "bun scripts/demo-github.ts",
-    "shim:init": "bun shim/src/cli.ts init"
+    "demo": "bun scripts/demo.ts",
+    "admin": "bun admin/src/cli.ts"
   },
   "dependencies": {
     "@hpke/core": "1.7.4",

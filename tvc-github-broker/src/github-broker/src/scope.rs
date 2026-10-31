@@ -37,7 +37,7 @@ use std::fmt;
 
 use crate::query::{BytePairs, decoded_pairs, encode_pairs, utf8_pairs};
 
-/// Most repositories per token. GitHub allows 500; RFC 017 picks 100.
+/// Most repositories per token. GitHub allows more; this app caps the list at 100.
 pub const MAX_REPOSITORIES: usize = 100;
 /// Most permissions per token.
 pub const MAX_PERMISSIONS: usize = 32;

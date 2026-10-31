@@ -1,2 +1,7 @@
 **/target
 out
+**/node_modules
+**/.demo
+**/.claude
+**/*.pem
+**/*.key.json

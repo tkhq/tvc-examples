@@ -13,7 +13,6 @@ clap = { version = "4", features = ["derive", "env"] }
 # Token delivery suite: DHKEM(P-256, HKDF-SHA256), HKDF-SHA256, AES-256-GCM.
 # This is the same suite as Turnkey's enclave-encrypt transport.
 hpke = { version = "0.10", default-features = false, features = ["alloc", "p256"] }
-metrics = { path = "../metrics" }
 rand_core = { version = "0.6", features = ["getrandom"] }
 reqwest = { workspace = true }
 # RSA signing. Do not use the `rsa` crate for private key operations

@@ -45,7 +45,7 @@ pub struct SealedToken {
     pub encapsulated_key: String,
     /// base64url ciphertext (AES-GCM output with tag).
     pub ciphertext: String,
-    /// What the AAD is.
+    /// Name of the claim whose value is the AAD.
     pub aad: &'static str,
 }
 

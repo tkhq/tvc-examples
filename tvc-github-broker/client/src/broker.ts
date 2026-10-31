@@ -17,12 +17,12 @@ export type Scope = { installationId: string; repositories: string[]; permission
  * broker rebuilds. (fetch joins repeated values into one line with ", ",
  * which hashes the same as separate lines.)
  */
-export const BOUND_HEADERS: Record<string, string> = {
+const BOUND_HEADERS: Record<string, string> = {
   accept: "application/vnd.github+json",
   "x-github-api-version": "2022-11-28",
 };
 
-export type TokenRequest = {
+type TokenRequest = {
   method: "POST";
   path: string;
   query: string;
@@ -56,7 +56,7 @@ export async function buildTokenRequest(scope: Scope, headers: Record<string, st
 }
 
 /** The `httpAuthzV1` intent for a request. */
-export function intentFor(r: TokenRequest, subject: string, ttl = DEFAULT_TTL_SECS): HttpAuthzV1 {
+function intentFor(r: TokenRequest, subject: string, ttl = DEFAULT_TTL_SECS): HttpAuthzV1 {
   return {
     method: r.method,
     path: r.path,
@@ -70,11 +70,11 @@ export function intentFor(r: TokenRequest, subject: string, ttl = DEFAULT_TTL_SE
   };
 }
 
-export function mintFor(shimUrl: string, key: ApiKeyFile, organizationId: string, audience: string, subject: string, r: TokenRequest, ttl?: number): Promise<MintResult> {
-  return mintJwt(shimUrl, key, { organizationId, audience, httpAuthzV1: intentFor(r, subject, ttl) });
+export function mintFor(apiBaseUrl: string, key: ApiKeyFile, organizationId: string, audience: string, subject: string, r: TokenRequest, ttl?: number): Promise<MintResult> {
+  return mintJwt(apiBaseUrl, key, { organizationId, audience, httpAuthzV1: intentFor(r, subject, ttl) });
 }
 
-export type BrokerResponse = { status: number; json: any };
+type BrokerResponse ={ status: number; json: any };
 
 export async function callBroker(
   brokerUrl: string,

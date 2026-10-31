@@ -7,7 +7,7 @@ import { Turnkey, type TurnkeyApiClient } from "@turnkey/sdk-server";
 
 export const DEFAULT_API_BASE_URL = "https://api.turnkey.com";
 
-/** Accept SDK-style (`publicKey`) and tk-CLI-style (`public_key`) key files. */
+/** Accept SDK-style (`publicKey`) and snake_case (`public_key`) key files. */
 export function readApiKeyFile(file: string): { publicKey: string; privateKey: string } {
   const data = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
   const publicKey = data.publicKey ?? data.public_key;

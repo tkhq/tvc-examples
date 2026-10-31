@@ -1,6 +1,6 @@
 //! GitHub installation-token request, grant checks, and revocation.
 //!
-//! The request and response rules follow RFC 017:
+//! The request and response rules:
 //!
 //! - `POST {api}/app/installations/{id}/access_tokens` with a body that the
 //!   app builds from the validated scope. The caller never supplies it.

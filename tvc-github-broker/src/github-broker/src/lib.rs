@@ -2,9 +2,9 @@
 //!
 //! The broker holds a GitHub App private key and mints GitHub installation
 //! tokens narrowed to the repositories and permissions named in the request.
-//! Each request must carry an http-authz/v1 JWT that
-//! binds the exact HTTP request: method, path, query, the `accept` and
-//! `x-github-api-version` headers, and the body. Turnkey issues that JWT
+//! Each request must carry an http-authz/v1 JWT that binds the exact HTTP
+//! request: method, path, query, the `accept` and `x-github-api-version`
+//! headers, and the body. Turnkey issues that JWT
 //! only after organization policy approves the request.
 //!
 //! At startup the broker exports the App key from Turnkey Secret Storage

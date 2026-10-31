@@ -32,7 +32,7 @@ const TYP: &str = "application/vnd.turnkey.http-authz-v1+jwt";
 
 /// Headers that a token for the token route must bind. They name the GitHub
 /// API version and media type the caller expects. Binding them means a host
-/// cannot change them after policy ran. This demo broker always calls GitHub
+/// cannot change them after policy ran. This broker always calls GitHub
 /// with API version 2022-11-28; a broker that forwarded them would depend on
 /// them.
 pub const TOKEN_ROUTE_REQUIRED_HEADERS: [&str; 2] = ["accept", "x-github-api-version"];

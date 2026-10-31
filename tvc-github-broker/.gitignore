@@ -1,7 +1,7 @@
 out
 .claude
 node_modules
+target
 .demo
-.shim
 *.pem
 *.key.json

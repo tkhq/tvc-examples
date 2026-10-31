@@ -45,7 +45,7 @@ secret material.
 - **Pinned Signer key.** The bundle is trusted only because the Signer
   enclave signed it with the key in `SecretsConfig::signer_public_key`. The
   caller pins that key out of band (the SDK's production key, or the value
-  `enclaveQuorumPublic` from a dev environment). A bundle under another key
+  `enclaveQuorumPublic` that your deployment reports). A bundle under another key
   fails with `UnpinnedSignerKey`.
 - **Organization ID check.** The bundle names the organization it was
   exported from; it must equal `SecretsConfig::organization_id`.
@@ -62,7 +62,7 @@ The export target is not bound to the enclave's attestation. Policy for
 `EXPORT_SECRETS` can check the principal and the secret's static properties,
 but not the target public key, so anyone who holds the app user's API key
 can export the secret to a key they control. The fix is the planned
-enclave-target export in the Secrets SPEC ("Enclave attestation bundles"),
+enclave-target export,
 where Turnkey checks the NSM attestation document and the QOS manifest and
 policy can match manifest fields. Until then, the API key is as sensitive as
 the secrets it can export.
