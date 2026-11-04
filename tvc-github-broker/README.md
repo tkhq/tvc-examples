@@ -13,5 +13,6 @@ A [TVC](https://docs.turnkey.com/features/verifiable-cloud/overview) app that ha
 
 - [DEPLOY.md](DEPLOY.md): run the demo on your machine, then deploy to TVC.
 - [ARCHITECTURE.md](ARCHITECTURE.md): how it works, the configuration, and the security notes.
+- [SANDBOX.md](SANDBOX.md): run a coding agent in a Docker sandbox with a narrowed GitHub token.
 
 The app verifies JWTs with the [`turnkey_jwt_profiles`](https://github.com/tkhq/rust-sdk/tree/main/jwt_profiles) crate. Until that crate is on crates.io, the build pins a commit of the Turnkey Rust SDK.
