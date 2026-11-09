@@ -58,12 +58,14 @@ export async function importAppKey(p: {
   return { secretId, fingerprint };
 }
 
-export function exportPolicy(brokerUserId: string) {
+/** The policy lets one user export the one secret whose key fingerprint matches. */
+export function exportPolicy(brokerUserId: string, keySha256: string) {
+  if (!/^SHA256:[A-Za-z0-9+/]{43}=$/.test(keySha256)) throw new Error("key fingerprint must look like SHA256:<base64>");
   return {
     policyName: "tvc-github-broker: broker may export the GitHub App key",
     effect: "EFFECT_ALLOW" as const,
     consensus: `approvers.any(user, user.id == '${brokerUserId}')`,
-    condition: `activity.type == 'ACTIVITY_TYPE_EXPORT_SECRETS' && secret.static_properties['demo:schema'] == '${SECRET_SCHEMA}'`,
-    notes: "tvc-github-broker: lets the TVC broker's API user export github-app-key-v1 secrets without other approvers. Remove after the demo.",
+    condition: `activity.type == 'ACTIVITY_TYPE_EXPORT_SECRETS' && secret.static_properties['demo:schema'] == '${SECRET_SCHEMA}' && secret.static_properties['github:key_sha256'] == '${keySha256}'`,
+    notes: "tvc-github-broker: lets the TVC broker's API user export one GitHub App key without other approvers. Remove after the demo.",
   };
 }

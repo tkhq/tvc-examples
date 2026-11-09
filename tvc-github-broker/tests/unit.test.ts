@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
 import { exportJWK, calculateJwkThumbprint } from "jose";
+import { exportPolicy } from "../admin/src/appkey.ts";
+import { callBroker } from "../client/src/broker.ts";
 import { sha256b64url } from "../lib/encoding.ts";
 import { canonicalQuery, scopeQuery } from "../lib/canonical.ts";
 import { isDigest, sha256Digest } from "../lib/digest.ts";
@@ -71,5 +73,36 @@ describe("token delivery HPKE", () => {
     const { enc, ct } = await seal(r.publicKey, new TextEncoder().encode("ghs_x"), DELIVERY_INFO, aad);
     expect(new TextDecoder().decode(await open(r, enc, ct, DELIVERY_INFO, aad))).toBe("ghs_x");
     await expect(open(r, enc, ct, DELIVERY_INFO, new TextEncoder().encode(await sha256Digest("b")))).rejects.toThrow();
+  });
+});
+
+describe("export policy", () => {
+  const fp = "SHA256:" + "A".repeat(43) + "=";
+  test("names one user and one key fingerprint", () => {
+    const p = exportPolicy("user-1", fp);
+    expect(p.consensus).toContain("user-1");
+    expect(p.condition).toContain(`secret.static_properties['github:key_sha256'] == '${fp}'`);
+  });
+  test("rejects a malformed fingerprint", () => {
+    expect(() => exportPolicy("user-1", "x' || true || '")).toThrow();
+  });
+});
+
+describe("callBroker", () => {
+  test("sends one content-type even when the request binds one", async () => {
+    const real = globalThis.fetch;
+    let seen: Headers | undefined;
+    globalThis.fetch = (async (_u: unknown, init: RequestInit) => {
+      seen = new Headers(init.headers);
+      return new Response("{}");
+    }) as typeof fetch;
+    try {
+      const r = { method: "POST", path: "/p", query: "", headers: { "content-type": "application/json" }, body: new Uint8Array() } as any;
+      await callBroker("http://x", r, "jwt");
+      expect(seen?.get("content-type")).toBe("application/json");
+      expect(seen?.get("authorization")).toBe("Bearer jwt");
+    } finally {
+      globalThis.fetch = real;
+    }
   });
 });

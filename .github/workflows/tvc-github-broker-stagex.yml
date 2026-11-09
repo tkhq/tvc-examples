@@ -31,6 +31,7 @@ jobs:
         ${{ github.ref == format('refs/heads/{0}', 'main') && 'latest' || '' }}
         ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || '' }}
         ${{ github.event_name == 'push' && github.ref_name || '' }}
+        ${{ github.event_name == 'workflow_dispatch' && format('manual-{0}', github.run_number) || '' }}
     steps:
       - name: Check out sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,6 +50,7 @@ jobs:
         run: env -C out/github-broker tar -cf - . | docker load
 
       - name: Upload to GHCR
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
         env:
           IMAGE_NAME: tvc-github-broker
         run: |
@@ -60,6 +62,7 @@ jobs:
           docker image push --all-tags "${destination}"
 
       - name: TVC deployment details
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
         env:
           IMAGE_NAME: tvc-github-broker
         run: |

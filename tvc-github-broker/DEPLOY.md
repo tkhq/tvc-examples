@@ -14,11 +14,16 @@ export TURNKEY_ORGANIZATION_ID=<org id> TURNKEY_API_KEY_FILE=<admin API key file
 export TURNKEY_SIGNER_PUBLIC_KEY=<enclaveQuorumPublic, hex>  # printed by: bun admin/src/cli.ts probe
 
 bun admin/src/cli.ts create-broker-user --out .demo/broker-api-key.json
-bun admin/src/cli.ts create-export-policy --broker-user-id <user id from above>
 bun admin/src/cli.ts import-app-key --pem <app key>.pem --app-client-id <Iv23li...>
 ```
 
-`import-app-key` prints a secret ID and a fingerprint. Compare the fingerprint with the one GitHub shows for the key. Then run the demo with the secret ID, the `MINT_JWT` signing key you trust as a JWK Set file, and your GitHub details:
+`import-app-key` prints a secret ID and a fingerprint. Compare the fingerprint with the one GitHub shows for the key. Then let the broker user export that one key:
+
+```sh
+bun admin/src/cli.ts create-export-policy --broker-user-id <user id> --key-sha256 <fingerprint>
+```
+
+Run the demo with the secret ID, the `MINT_JWT` signing key you trust as a JWK Set file, and your GitHub details:
 
 ```sh
 SECRET_ID=<secret id> BROKER_API_KEY_FILE=.demo/broker-api-key.json \
@@ -77,9 +82,11 @@ curl https://app-<app id>.app.turnkey.cloud/v1/api-public-key
 
 ```sh
 bun admin/src/cli.ts create-broker-user --public-key <hex>
-bun admin/src/cli.ts create-export-policy --broker-user-id <user id>
 bun admin/src/cli.ts import-app-key --pem <app key>.pem --app-client-id <Iv23li...>
+bun admin/src/cli.ts create-export-policy --broker-user-id <user id> --key-sha256 <fingerprint>
 ```
+
+`import-app-key` prints the fingerprint that the export policy needs. Compare it with the one GitHub shows for the key.
 
 **6. Deploy with the config.** Fill in [`deploy/broker-config.example.json`](deploy/broker-config.example.json). Set `audience` to the app's public origin and put the `MINT_JWT` key set inline as `trusted_jwks`. Then pass the config to the broker as a pivot argument, in place of `--bootstrap`:
 

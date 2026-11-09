@@ -39,9 +39,10 @@ Set `MODEL` to pick a model (default `anthropic/claude-haiku-5.5`). The router a
 
 ## What the router enforces
 
-`sandbox/router.ts` accepts only `POST /v1/chat/completions` with a valid session token. It rejects models outside the allowlist, stops at a per-session request cap, adds the provider key, and streams the response back. The token expires after 30 minutes by default.
+`sandbox/router.ts` accepts only `POST /v1/chat/completions` with a valid session token. It rejects models outside the allowlist, rejects the OpenRouter `models` fallback list, stops at a per-session request cap, adds the provider key, and streams the response back. The token expires after 30 minutes by default.
 
 ## Limits
 
 - The router runs on the host, so the host process holds the model key. This shows the sandbox boundary and the token handling. It does not show enclave custody of the model key. A router that runs as a TVC app would close that gap.
+- On Linux the launcher shares the host network with the container, because the bridge network cannot reach a loopback listener. This path is untested. On Docker Desktop the container uses `host.docker.internal`.
 - The container has open network access, so the agent can send data to other hosts. Add egress rules if that matters.

@@ -83,9 +83,12 @@ export async function callBroker(
   overrides: { path?: string; query?: string; body?: Bytes; headers?: Record<string, string> } = {},
 ): Promise<BrokerResponse> {
   const q = overrides.query ?? r.query;
+  const headers = new Headers(overrides.headers ?? r.headers);
+  headers.set("Authorization", `Bearer ${jwt}`);
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   const resp = await fetch(`${brokerUrl}${overrides.path ?? r.path}${q ? `?${q}` : ""}`, {
     method: r.method,
-    headers: { ...(overrides.headers ?? r.headers), Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+    headers,
     body: overrides.body ?? r.body,
   });
   return { status: resp.status, json: await resp.json().catch(() => ({})) };

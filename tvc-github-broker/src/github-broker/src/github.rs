@@ -294,10 +294,11 @@ impl GitHubClient {
         let parsed = serde_json::from_slice::<TokenResponse>(&bytes);
 
         if status != 201 {
-            // A token in a non-201 response is still a live credential.
-            let revoked = match &parsed {
-                Ok(r) if !r.token.is_empty() => self.revoke(&r.token).await,
-                _ => false,
+            // A token in a non-201 response is still a live credential, even
+            // if the rest of the body does not match the schema.
+            let revoked = match raw_token(&bytes) {
+                Some(t) => self.revoke(&t).await,
+                None => false,
             };
             return Err(GitHubError::Status {
                 status,
@@ -305,7 +306,13 @@ impl GitHubClient {
                 revoked,
             });
         }
-        let resp = parsed.map_err(|_| GitHubError::BadResponse("token response schema"))?;
+        let Ok(resp) = parsed else {
+            // The token may be live even when the grant cannot be checked.
+            if let Some(t) = raw_token(&bytes) {
+                self.revoke(&t).await;
+            }
+            return Err(GitHubError::BadResponse("token response schema"));
+        };
         match check_grant(scope, &resp) {
             Ok(grant) => Ok(IssuedToken {
                 token: SecretString::new(resp.token),
@@ -339,11 +346,26 @@ impl GitHubClient {
     }
 }
 
+/// The `token` string of a response body, read without checking the rest of
+/// the schema, so a rejected response can still have its token revoked.
+fn raw_token(bytes: &[u8]) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+    v.get("token")?.as_str().filter(|t| !t.is_empty()).map(str::to_owned)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::scope::{parse_scope, scope_query};
+
+    #[test]
+    fn raw_token_ignores_the_rest_of_the_schema() {
+        assert_eq!(raw_token(br#"{"token":"ghs_x","permissions":7}"#).as_deref(), Some("ghs_x"));
+        assert_eq!(raw_token(br#"{"token":""}"#), None);
+        assert_eq!(raw_token(br#"{"message":"no"}"#), None);
+        assert_eq!(raw_token(b"not json"), None);
+    }
 
     fn scope() -> Scope {
         parse_scope(
