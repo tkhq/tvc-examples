@@ -69,12 +69,18 @@ const server = Bun.serve({
     const body = await req.text();
     let model = "-";
     try {
-      model = JSON.parse(body).model;
+      const parsed = JSON.parse(body);
+      model = parsed.model;
+      // OpenRouter also routes on `models` (fallbacks), which would skip the allowlist.
+      if ("models" in parsed) {
+        log(400, String(model));
+        return json(400, "models_not_supported");
+      }
     } catch {
       log(400);
       return json(400, "bad_json");
     }
-    if (!claims.models.includes(model)) {
+    if (typeof model !== "string" || !claims.models.includes(model)) {
       log(403, model);
       return json(403, "model_not_allowed");
     }

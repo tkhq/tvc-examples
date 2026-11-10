@@ -30,6 +30,7 @@ const { positionals, values } = parseArgs({
     "app-client-id": { type: "string" },
     name: { type: "string" },
     "broker-user-id": { type: "string" },
+    "key-sha256": { type: "string" },
     "public-key": { type: "string" },
   },
 });
@@ -70,6 +71,7 @@ switch (positionals[0]) {
     // In an enclave the broker derives its API key from the quorum seed, so
     // register the public key it prints. Otherwise make a key file for local runs.
     const registered = values["public-key"];
+    const keyFile = registered ? undefined : need("out");
     const k = registered ? undefined : await generateApiKey();
     const publicKey = registered ?? k!.publicKey;
     const res = await c.client.createUsers({
@@ -84,9 +86,7 @@ switch (positionals[0]) {
         },
       ],
     } as any);
-    let keyFile: string | undefined;
-    if (k) {
-      keyFile = need("out");
+    if (k && keyFile) {
       fs.mkdirSync(path.dirname(keyFile), { recursive: true });
       fs.writeFileSync(keyFile, JSON.stringify({ publicKey: k.publicKey, privateKey: k.privateKey }, null, 2) + "\n", { mode: 0o600 });
     }
@@ -95,7 +95,7 @@ switch (positionals[0]) {
   }
   case "create-export-policy": {
     const c = await connect();
-    const res = await c.client.createPolicy({ organizationId: c.organizationId, ...exportPolicy(need("broker-user-id")) });
+    const res = await c.client.createPolicy({ organizationId: c.organizationId, ...exportPolicy(need("broker-user-id"), need("key-sha256")) });
     print({ policyId: (res as any).policyId, activityId: (res as any).activity?.id, status: (res as any).activity?.status });
     break;
   }

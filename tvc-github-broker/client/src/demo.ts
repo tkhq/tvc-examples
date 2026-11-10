@@ -64,22 +64,24 @@ step("3. Decrypt the token and make one narrowed GitHub call");
 const token = await decryptToken(req, resp.json);
 const gh = (path: string, method = "GET") =>
   fetch(`https://api.github.com${path}`, { method, headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "tvc-github-broker" } });
-const repo = await gh(`/repos/${owner}/${repoName}`);
-expect(repo.status === 200, `GET /repos/${owner}/${repoName} -> ${repo.status}`);
+try {
+  const repo = await gh(`/repos/${owner}/${repoName}`);
+  expect(repo.status === 200, `GET /repos/${owner}/${repoName} -> ${repo.status}`);
 
-step("4. A scope outside the allowlist, and an altered request, fail");
-const wider = await buildTokenRequest({ ...scope, permissions: { ...scope.permissions, contents: "write" } });
-const widerJwt = await mintFor(apiBaseUrl, user, org, audience, subject, wider);
-if (widerJwt.ok) {
-  const r = await callBroker(brokerUrl, wider, widerJwt.jwt);
-  expect(r.status === 403 && r.json.error === "scope_not_allowed", `contents:write -> ${r.status} ${r.json.error}`);
+  step("4. A scope outside the allowlist, and an altered request, fail");
+  const wider = await buildTokenRequest({ ...scope, permissions: { ...scope.permissions, contents: "write" } });
+  const widerJwt = await mintFor(apiBaseUrl, user, org, audience, subject, wider);
+  if (widerJwt.ok) {
+    const r = await callBroker(brokerUrl, wider, widerJwt.jwt);
+    expect(r.status === 403 && r.json.error === "scope_not_allowed", `contents:write -> ${r.status} ${r.json.error}`);
+  }
+  const altered = await callBroker(brokerUrl, req, minted.jwt, { query: scopeQuery([...scope.repositories, "other"].sort(), scope.permissions) });
+  expect(altered.status === 401, `query changed after minting -> ${altered.status} ${altered.json.error}`);
+} finally {
+  step("5. Revoke the installation token");
+  const revoked = await gh("/installation/token", "DELETE");
+  expect(revoked.status === 204, `DELETE /installation/token -> ${revoked.status}`);
 }
-const altered = await callBroker(brokerUrl, req, minted.jwt, { query: scopeQuery([...scope.repositories, "other"].sort(), scope.permissions) });
-expect(altered.status === 401, `query changed after minting -> ${altered.status} ${altered.json.error}`);
-
-step("5. Revoke the installation token");
-const revoked = await gh("/installation/token", "DELETE");
-expect(revoked.status === 204, `DELETE /installation/token -> ${revoked.status}`);
 
 console.log(failures === 0 ? "\nAll demo checks passed." : `\n${failures} demo check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
