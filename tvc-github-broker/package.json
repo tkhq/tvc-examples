@@ -1,0 +1,21 @@
+{
+  "name": "tvc-github-broker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test tests/",
+    "typecheck": "tsc --noEmit",
+    "demo": "bun scripts/demo.ts",
+    "admin": "bun admin/src/cli.ts"
+  },
+  "dependencies": {
+    "@hpke/core": "1.7.5",
+    "@turnkey/api-key-stamper": "0.6.17",
+    "@turnkey/sdk-server": "8.5.0",
+    "jose": "6.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "typescript": "5.9.3"
+  }
+}
