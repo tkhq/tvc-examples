@@ -56,15 +56,41 @@ const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 // A /check body is four short JSON fields. Anything bigger is not a real request.
 const MAX_BODY_BYTES = 16 * 1024;
 
-const server = createServer(async (req, res) => {
-  const url = new URL(req.url ?? "/", "http://localhost");
+const server = createServer((req, res) => {
+  // Node exits on an unhandled rejection, so an uncaught throw in handle()
+  // would take the replica down. Turn it into a logged 500 instead.
+  handle(req, res).catch((err) => {
+    console.error("request handler failed:", err);
+    if (!res.headersSent && !res.destroyed) {
+      json(res, 500, { error: "internal error" });
+    } else {
+      res.destroy();
+    }
+  });
+});
+
+async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  // The HTTP parser accepts targets like "//" that the URL parser rejects.
+  let url: URL;
+  try {
+    url = new URL(req.url ?? "/", "http://localhost");
+  } catch {
+    return json(res, 400, { error: "invalid request URL" });
+  }
 
   if (req.method === "GET" && url.pathname === "/health") {
     return json(res, 200, { status: "ok" });
   }
 
   if (req.method === "POST" && url.pathname === "/check") {
-    const raw = await readBody(req, MAX_BODY_BYTES);
+    // A client that disconnects mid-body makes the read reject with ECONNRESET.
+    let raw: string | null;
+    try {
+      raw = await readBody(req, MAX_BODY_BYTES);
+    } catch {
+      if (!res.destroyed) json(res, 400, { error: "could not read request body" });
+      return;
+    }
     if (raw === null) {
       // Connection: close makes Node drop the socket after the response, which
       // discards whatever the client was still sending.
@@ -133,7 +159,7 @@ const server = createServer(async (req, res) => {
   }
 
   json(res, 404, { error: "not found" });
-});
+}
 
 const port = Number(args.port);
 server.listen(port, "0.0.0.0", () => {
