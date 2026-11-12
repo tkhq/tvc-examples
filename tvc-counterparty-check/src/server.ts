@@ -53,6 +53,8 @@ console.log(
 );
 
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+// A /check body is four short JSON fields. Anything bigger is not a real request.
+const MAX_BODY_BYTES = 16 * 1024;
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
@@ -62,9 +64,17 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/check") {
+    const raw = await readBody(req, MAX_BODY_BYTES);
+    if (raw === null) {
+      // Connection: close makes Node drop the socket after the response, which
+      // discards whatever the client was still sending.
+      res.writeHead(413, { "content-type": "application/json", connection: "close" });
+      res.end(JSON.stringify({ error: `request body exceeds ${MAX_BODY_BYTES} bytes` }) + "\n");
+      return;
+    }
     let parsed: unknown;
     try {
-      parsed = JSON.parse(await readBody(req));
+      parsed = JSON.parse(raw);
     } catch {
       return json(res, 400, { error: "invalid JSON body" });
     }
@@ -135,8 +145,17 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body) + "\n");
 }
 
-async function readBody(req: IncomingMessage): Promise<string> {
+/** Read the body up to maxBytes. Returns null once the limit is exceeded. */
+async function readBody(req: IncomingMessage, maxBytes: number): Promise<string | null> {
+  if (Number(req.headers["content-length"] ?? 0) > maxBytes) return null;
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let received = 0;
+  // destroyOnReturn: false keeps the socket alive on early exit so the 413
+  // response can still be written.
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+    received += (chunk as Buffer).length;
+    if (received > maxBytes) return null;
+    chunks.push(chunk as Buffer);
+  }
   return Buffer.concat(chunks).toString("utf8");
 }
