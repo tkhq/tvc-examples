@@ -62,12 +62,18 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/check") {
-    let body: { to?: unknown; from?: unknown; valueWei?: unknown; chainId?: unknown };
+    let parsed: unknown;
     try {
-      body = JSON.parse(await readBody(req));
+      parsed = JSON.parse(await readBody(req));
     } catch {
       return json(res, 400, { error: "invalid JSON body" });
     }
+    // JSON.parse returns null, a number, or an array; reading .to off
+    // those would throw past the try/catch and take the process down.
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return json(res, 400, { error: "body must be a JSON object" });
+    }
+    const body = parsed as Record<string, unknown>;
     if (typeof body.to !== "string" || !EVM_ADDRESS.test(body.to)) {
       return json(res, 400, { error: "to must be a 0x-prefixed EVM address" });
     }
