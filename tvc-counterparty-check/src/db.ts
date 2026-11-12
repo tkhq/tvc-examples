@@ -2,6 +2,7 @@
 // table; nothing here writes.
 
 import { readFileSync } from "node:fs";
+import tls from "node:tls";
 import { Pool as NeonPool } from "@neondatabase/serverless";
 import pg from "pg";
 
@@ -22,20 +23,33 @@ export interface DbOptions {
    * for Neon databases when only HTTPS egress is available.
    */
   driver?: DbDriver;
-  /** Path to a PEM CA certificate to trust instead of Node's built-in roots. */
+  /**
+   * Path to a PEM CA certificate. Becomes the only trusted CA for every TLS
+   * connection this process makes, whichever driver is in use.
+   */
   caFile?: string;
-  /** Plain TCP, no TLS. Only for a local database you fully control. */
+  /** Plain TCP, no TLS. Only for a local database you fully control. pg driver only. */
   insecure?: boolean;
 }
 
 export function connect(opts: DbOptions): pg.Pool {
+  // The Neon driver disables Postgres-protocol TLS and relies on the WebSocket's
+  // own TLS, so an ssl: false here would change nothing while the flag claims
+  // TLS is off. Refuse it rather than let the flag lie.
+  if (opts.driver === "neon-serverless" && opts.insecure) {
+    throw new Error("--insecure-database is only supported with --database-driver pg");
+  }
+
   // TLS is on by default and verifies the server certificate. Without caFile,
   // Node verifies against the root store compiled into the node binary, which
-  // is part of the pivot that TVC pins. With caFile, only that CA is trusted,
-  // which is the right setting for a database you run yourself.
-  const ssl = opts.insecure
-    ? false
-    : { rejectUnauthorized: true, ca: opts.caFile ? readFileSync(opts.caFile, "utf8") : undefined };
+  // is part of the pivot that TVC pins but still spans well over a hundred
+  // public CAs. With caFile, that store is replaced process-wide so only that
+  // CA is trusted. Process-wide matters: the Neon driver's WebSocket TLS never
+  // sees the ssl object below and would otherwise keep using the full store.
+  // The database is this app's only outbound TLS, so nothing else is affected.
+  const ca = opts.caFile ? readFileSync(opts.caFile, "utf8") : undefined;
+  if (ca) tls.setDefaultCACertificates([ca]);
+  const ssl = opts.insecure ? false : { rejectUnauthorized: true, ca };
 
   // pg merges parameters parsed from the URL over the explicit config, so
   // ?sslmode=disable or ?sslrootcert=... in the URL would silently replace the
