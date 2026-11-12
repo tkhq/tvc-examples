@@ -37,6 +37,17 @@ export function connect(opts: DbOptions): pg.Pool {
     ? false
     : { rejectUnauthorized: true, ca: opts.caFile ? readFileSync(opts.caFile, "utf8") : undefined };
 
+  // pg merges parameters parsed from the URL over the explicit config, so
+  // ?sslmode=disable or ?sslrootcert=... in the URL would silently replace the
+  // ssl object above. Reject them so the flags stay the only TLS knobs.
+  for (const parameter of new URL(opts.connectionString).searchParams.keys()) {
+    if (parameter.startsWith("ssl") || parameter === "uselibpqcompat") {
+      throw new Error(
+        `database URL parameter "${parameter}" is not supported; use --database-ca-file or --insecure-database instead`,
+      );
+    }
+  }
+
   const config = {
     connectionString: opts.connectionString,
     ssl,

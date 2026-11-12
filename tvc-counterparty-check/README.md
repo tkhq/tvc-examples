@@ -160,7 +160,7 @@ curl -s -X POST https://<publicDomain>/check -H 'content-type: application/json'
 | `--insecure-database` | off | Plain TCP, for a local database without TLS |
 | `EPHEMERAL_KEY_FILE` (env) | `/qos.ephemeral.key` | Override the seed location for local testing |
 
-By default the database connection uses TLS and verifies the server certificate against the root store built into Node.
+By default the database connection uses TLS and verifies the server certificate against the root store built into Node. SSL parameters in the URL (`sslmode`, `sslrootcert`, and the like) are rejected at startup, since the driver would let them override the flags above.
 
 ## Project structure
 
