@@ -51,6 +51,8 @@ Only `to` is required. `from`, `valueWei` and `chainId` are echoed into the sign
 Requires Node 24 and Docker.
 
 ```sh
+npm ci
+
 # Postgres with the schema and seed rows
 docker run -d --name cpc-pg -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=compliance -p 5432:5432 postgres:17-alpine
 sleep 3
