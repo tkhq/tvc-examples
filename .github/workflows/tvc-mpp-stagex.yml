@@ -41,7 +41,7 @@ jobs:
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           if gh api "/orgs/${owner}/packages/container/tvc-mpp" --jq '.visibility' > /tmp/mpp-visibility 2> /tmp/mpp-package-error; then
             test "$(cat /tmp/mpp-visibility)" = private
-          elif ! rg -q 'HTTP 404' /tmp/mpp-package-error; then
+          elif ! grep -q 'HTTP 404' /tmp/mpp-package-error; then
             cat /tmp/mpp-package-error
             exit 1
           fi
