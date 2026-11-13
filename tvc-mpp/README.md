@@ -130,15 +130,15 @@ static binary. StageX base images are pinned by digest and Rust dependencies by
 the committed lockfile. Docker needs BuildKit and the containerd image store,
 following the other examples in this repository.
 
-The scoped image workflow builds this artifact and publishes
-`ghcr.io/<owner>/tvc-mpp:sha-<commit>`. It refuses an existing public destination
-before pushing and checks that the package is private afterward. Confirm the
-package's private visibility before using it for the partner demo. Publishing
-the source repository does not authorize changing the image's visibility.
+The scoped image workflow builds and checks this artifact without publishing.
+Its summary records the extracted binary digest. Publish reviewed demo images
+through the private `demo-mpp` repository to a pre-existing private registry
+package. Public repository linkage can change package visibility; do not rely
+on a new package default. The public source repository holds no registry write
+permission for this build.
 
-The workflow summary gives the immutable image URL and extracted binary digest.
-Use those exact values when creating a TVC deployment; a mutable image tag is
-insufficient.
+Pin the published immutable image digest and extracted binary digest when
+creating a TVC deployment; a mutable image tag is insufficient.
 
 ## Deploy a persistent TVC app
 
