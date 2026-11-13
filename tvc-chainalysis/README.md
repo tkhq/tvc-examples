@@ -215,6 +215,8 @@ curl -X POST http://localhost:3000/screen \
 
 TLS to that host is verified against a CA bundle compiled into the binary (`apps/tvc-app/ca-certificates.crt`), not the container filesystem, and the bundle is pinned to the Google Trust Services roots that `public.chainalysis.com` chains to. If Chainalysis ever moves to a different CA, screening will fail with an `x509: certificate signed by unknown authority` error until the bundle is refreshed; the file header explains how.
 
+The Docker build stage uses the same bundle (via `SSL_CERT_FILE` plus `SSL_CERT_DIR`) to verify `go mod download` against `proxy.golang.org` and `sum.golang.org`, which also chain to GTS roots, instead of the Alpine `ca-certificates` store that the `golang:alpine` base image ships.
+
 This address is useful for testing a known result against the live API:
 
 | Address | Result |
