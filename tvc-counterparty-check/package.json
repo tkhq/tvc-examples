@@ -1,0 +1,27 @@
+{
+  "name": "tvc-counterparty-check",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A small Turnkey Verifiable Cloud app in TypeScript: checks a payout recipient against a Postgres counterparty table and returns a signed verdict",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/server.ts",
+    "verify": "node scripts/verify.ts",
+    "typecheck": "tsc",
+    "bundle": "esbuild src/server.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/server.cjs --external:pg-native"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6",
+    "typescript": "^5.9.0"
+  }
+}

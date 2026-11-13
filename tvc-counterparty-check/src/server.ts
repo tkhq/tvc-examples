@@ -1,0 +1,202 @@
+// tvc-counterparty-check: a compliance rule the Turnkey policy engine cannot
+// express, because the data lives with you.
+//
+//   GET  /health   -> {"status":"ok"}                       (TVC's health check)
+//   POST /check    -> is this payout recipient a verified counterparty?
+//                     Answer signed by the enclave's Ephemeral Key.
+//
+// Run with plain Node 24 (TypeScript is stripped at load):
+//   node src/server.ts --port 3000 --database-url postgres://...
+
+import { readFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { parseArgs } from "node:util";
+import { connect, findCounterparty } from "./db.ts";
+import { loadEnclaveKeys, signPayload, EPHEMERAL_KEY_FILE } from "./enclave.ts";
+
+// What precedes the flags in argv depends on how the app was started: a script
+// path under plain Node, or runtime placeholders in the single-executable build.
+// Start at the first flag so both work.
+const firstFlag = process.argv.findIndex((a, i) => i > 0 && a.startsWith("--"));
+const { values: args } = parseArgs({
+  args: firstFlag === -1 ? [] : process.argv.slice(firstFlag),
+  options: {
+    port: { type: "string", default: "3000" },
+    "database-url": { type: "string", default: process.env.DATABASE_URL },
+    "database-driver": { type: "string", default: "pg" },
+    "database-ca-file": { type: "string" },
+    "database-ca": { type: "string" },
+    "insecure-database": { type: "boolean", default: false },
+  },
+});
+if (args["database-driver"] !== "pg" && args["database-driver"] !== "neon-serverless") {
+  console.error("--database-driver must be pg or neon-serverless");
+  process.exit(2);
+}
+if (!args["database-url"]) {
+  console.error("--database-url (or DATABASE_URL) is required");
+  process.exit(2);
+}
+if (args["database-ca-file"] && args["database-ca"]) {
+  console.error("use --database-ca-file or --database-ca, not both");
+  process.exit(2);
+}
+
+// Only the pivot binary is copied into the enclave, so a CA file path cannot
+// resolve there. --database-ca carries the PEM itself, base64-encoded, which
+// fits in pivotArgs.
+const databaseCa = args["database-ca-file"]
+  ? readFileSync(args["database-ca-file"], "utf8")
+  : args["database-ca"]
+    ? Buffer.from(args["database-ca"], "base64").toString("utf8")
+    : undefined;
+
+const pool = connect({
+  connectionString: args["database-url"],
+  driver: args["database-driver"],
+  ca: databaseCa,
+  insecure: args["insecure-database"],
+});
+
+// Inside an enclave this loads the Ephemeral Key; elsewhere it is null and
+// verdicts simply carry no appProof.
+const keys = loadEnclaveKeys();
+console.log(
+  keys
+    ? `ephemeral key loaded from ${EPHEMERAL_KEY_FILE}; verdicts will be signed`
+    : `no ephemeral key at ${EPHEMERAL_KEY_FILE}; verdicts will be unsigned (expected outside an enclave)`,
+);
+
+const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+// A /check body is four short JSON fields. Anything bigger is not a real request.
+const MAX_BODY_BYTES = 16 * 1024;
+
+const server = createServer((req, res) => {
+  // Node exits on an unhandled rejection, so an uncaught throw in handle()
+  // would take the replica down. Turn it into a logged 500 instead.
+  handle(req, res).catch((err) => {
+    console.error("request handler failed:", err);
+    if (!res.headersSent && !res.destroyed) {
+      json(res, 500, { error: "internal error" });
+    } else {
+      res.destroy();
+    }
+  });
+});
+
+async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  // The HTTP parser accepts targets like "//" that the URL parser rejects.
+  let url: URL;
+  try {
+    url = new URL(req.url ?? "/", "http://localhost");
+  } catch {
+    return json(res, 400, { error: "invalid request URL" });
+  }
+
+  if (req.method === "GET" && url.pathname === "/health") {
+    return json(res, 200, { status: "ok" });
+  }
+
+  if (req.method === "POST" && url.pathname === "/check") {
+    // A client that disconnects mid-body makes the read reject with ECONNRESET.
+    let raw: string | null;
+    try {
+      raw = await readBody(req, MAX_BODY_BYTES);
+    } catch {
+      if (!res.destroyed) json(res, 400, { error: "could not read request body" });
+      return;
+    }
+    if (raw === null) {
+      // Connection: close makes Node drop the socket after the response, which
+      // discards whatever the client was still sending.
+      res.writeHead(413, { "content-type": "application/json", connection: "close" });
+      res.end(JSON.stringify({ error: `request body exceeds ${MAX_BODY_BYTES} bytes` }) + "\n");
+      return;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return json(res, 400, { error: "invalid JSON body" });
+    }
+    // JSON.parse returns null, a number, or an array; reading .to off
+    // those would throw past the try/catch and take the process down.
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return json(res, 400, { error: "body must be a JSON object" });
+    }
+    const body = parsed as Record<string, unknown>;
+    if (typeof body.to !== "string" || !EVM_ADDRESS.test(body.to)) {
+      return json(res, 400, { error: "to must be a 0x-prefixed EVM address" });
+    }
+    const to = body.to.toLowerCase();
+
+    // The rule. Any database problem is a 500, never an "allowed": a compliance
+    // check must fail closed.
+    let counterparty;
+    try {
+      counterparty = await findCounterparty(pool, to);
+    } catch (err) {
+      console.error("database lookup failed:", err);
+      return json(res, 500, { error: "counterparty lookup failed" });
+    }
+
+    const allowed = counterparty?.kybStatus === "verified";
+    const reason =
+      counterparty === null
+        ? "recipient is not an onboarded counterparty"
+        : allowed
+          ? "recipient is a verified counterparty"
+          : `recipient KYB status is ${counterparty.kybStatus}`;
+
+    // Everything the verdict depends on goes into the signed payload, so a
+    // verifier can see exactly which transaction was judged and why.
+    const payload = {
+      type: "counterparty_check",
+      timestampMs: String(Date.now()),
+      transaction: {
+        to,
+        from: typeof body.from === "string" ? body.from.toLowerCase() : null,
+        valueWei: typeof body.valueWei === "string" ? body.valueWei : null,
+        chainId: typeof body.chainId === "number" ? body.chainId : null,
+      },
+      allowed,
+      reason,
+      counterparty,
+    };
+
+    return json(res, 200, {
+      allowed,
+      reason,
+      counterparty,
+      appProof: keys ? signPayload(keys, payload) : null,
+      bootEphemeralKey: keys?.bootEphemeralKey ?? null,
+    });
+  }
+
+  json(res, 404, { error: "not found" });
+}
+
+const port = Number(args.port);
+server.listen(port, "0.0.0.0", () => {
+  console.log(`tvc-counterparty-check listening on 0.0.0.0:${port}`);
+});
+
+function json(res: ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify(body) + "\n");
+}
+
+/** Read the body up to maxBytes. Returns null once the limit is exceeded. */
+async function readBody(req: IncomingMessage, maxBytes: number): Promise<string | null> {
+  if (Number(req.headers["content-length"] ?? 0) > maxBytes) return null;
+  const chunks: Buffer[] = [];
+  let received = 0;
+  // destroyOnReturn: false keeps the socket alive on early exit so the 413
+  // response can still be written.
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+    received += (chunk as Buffer).length;
+    if (received > maxBytes) return null;
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
