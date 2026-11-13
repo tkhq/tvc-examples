@@ -49,7 +49,8 @@ RUN sha256sum /tvc_app | awk '{print "expectedPivotDigest=" $1}'
 
 EXPOSE 3000
 
-# In a TVC deployment these become pivotPath (/tvc_app) + pivotArgs, where you
-# also add --database-url (and optionally --database-ca-file).
+# ENTRYPOINT and CMD only matter when you run this image yourself. TVC ignores
+# them: it extracts /tvc_app and starts it with the pivotArgs from the
+# deployment manifest (see the README).
 ENTRYPOINT ["/tvc_app"]
 CMD ["--port", "3000"]

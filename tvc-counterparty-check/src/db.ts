@@ -1,7 +1,6 @@
 // Postgres access. The enclave is a read-only consumer of the counterparties
 // table; nothing here writes.
 
-import { readFileSync } from "node:fs";
 import tls from "node:tls";
 import { Pool as NeonPool } from "@neondatabase/serverless";
 import pg from "pg";
@@ -24,10 +23,10 @@ export interface DbOptions {
    */
   driver?: DbDriver;
   /**
-   * Path to a PEM CA certificate. Becomes the only trusted CA for every TLS
+   * PEM CA certificate(s). Becomes the only trust store for every TLS
    * connection this process makes, whichever driver is in use.
    */
-  caFile?: string;
+  ca?: string;
   /** Plain TCP, no TLS. Only for a local database you fully control. pg driver only. */
   insecure?: boolean;
 }
@@ -40,16 +39,20 @@ export function connect(opts: DbOptions): pg.Pool {
     throw new Error("--insecure-database is only supported with --database-driver pg");
   }
 
-  // TLS is on by default and verifies the server certificate. Without caFile,
+  // TLS is on by default and verifies the server certificate. Without ca,
   // Node verifies against the root store compiled into the node binary, which
   // is part of the pivot that TVC pins but still spans well over a hundred
-  // public CAs. With caFile, that store is replaced process-wide so only that
-  // CA is trusted. Process-wide matters: the Neon driver's WebSocket TLS never
-  // sees the ssl object below and would otherwise keep using the full store.
-  // The database is this app's only outbound TLS, so nothing else is affected.
-  const ca = opts.caFile ? readFileSync(opts.caFile, "utf8") : undefined;
-  if (ca) tls.setDefaultCACertificates([ca]);
-  const ssl = opts.insecure ? false : { rejectUnauthorized: true, ca };
+  // public CAs. With ca, that store is replaced process-wide so only those
+  // CAs are trusted. Process-wide matters: the Neon driver's WebSocket TLS
+  // never sees the ssl object below and would otherwise keep using the full
+  // store. The database is this app's only outbound TLS, so nothing else is
+  // affected.
+  if (opts.ca) {
+    const certs = opts.ca.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+    if (!certs) throw new Error("database CA is not a PEM certificate");
+    tls.setDefaultCACertificates(certs);
+  }
+  const ssl = opts.insecure ? false : { rejectUnauthorized: true, ca: opts.ca };
 
   // pg merges parameters parsed from the URL over the explicit config, so
   // ?sslmode=disable or ?sslrootcert=... in the URL would silently replace the

@@ -105,7 +105,9 @@ Make the package public in GitHub. The deployment manifest needs:
 | `pivotArgs` | `["--port", "3000", "--database-url", "postgres://…"]` |
 | `expectedPivotDigest` | the value printed by the build |
 
-`expectedPivotDigest` covers the whole app: runtime, dependencies and your code are all inside `/tvc_app`. The database URL carries a password and belongs in `pivotArgs`, not in the image.
+`expectedPivotDigest` covers the whole app: runtime, dependencies and your code are all inside `/tvc_app`. To pin the database CA, add `--database-ca` with the base64-encoded PEM (`base64 -i ca.pem` on macOS, `base64 -w0 ca.pem` on Linux); a file path would not resolve inside the enclave.
+
+`pivotArgs` are part of the QOS manifest, and the manifest is included in every Boot Proof. Anyone who can fetch the app's Boot Proof, or whom you hand one for verification, can read the database URL and its password. Give the enclave its own role with `SELECT` on `counterparties` only (see `db/schema.sql`), restrict the database's network allow-list, and rotate the password when you rotate approvers.
 
 
 ## Deploy to TVC
@@ -158,11 +160,12 @@ curl -s -X POST https://<publicDomain>/check -H 'content-type: application/json'
 | `--port` | `3000` | Listen port |
 | `--database-url` | `$DATABASE_URL` | Postgres connection string |
 | `--database-driver` | `pg` | `pg` speaks the Postgres protocol on the URL's port. `neon-serverless` carries it over a WebSocket on port 443, for Neon databases when only HTTPS egress is available |
-| `--database-ca-file` | none | Trust only this CA, for either driver |
+| `--database-ca-file` | none | Path to a PEM CA to trust instead of Node's root store. Local use |
+| `--database-ca` | none | The same PEM, base64-encoded, for TVC deployments where no file is available |
 | `--insecure-database` | off | Plain TCP, for a local database without TLS. `pg` driver only |
 | `EPHEMERAL_KEY_FILE` (env) | `/qos.ephemeral.key` | Override the seed location for local testing |
 
-By default the database connection uses TLS and verifies the server certificate against the root store built into Node, which trusts well over a hundred public CAs. `--database-ca-file` replaces that store for the whole process, so a certificate mis-issued by any other CA is rejected. Use it whenever you know which CA your database chains to. SSL parameters in the URL (`sslmode`, `sslrootcert`, and the like) are rejected at startup, since the driver would let them override the flags above.
+By default the database connection uses TLS and verifies the server certificate against the root store built into Node, which trusts well over a hundred public CAs. `--database-ca-file` and `--database-ca` replace that store for the whole process, so a certificate mis-issued by any other CA is rejected. Use one of them whenever you know which CA your database chains to. SSL parameters in the URL (`sslmode`, `sslrootcert`, and the like) are rejected at startup, since the driver would let them override the flags above.
 
 ## Project structure
 

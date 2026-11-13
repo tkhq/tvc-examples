@@ -8,6 +8,7 @@
 // Run with plain Node 24 (TypeScript is stripped at load):
 //   node src/server.ts --port 3000 --database-url postgres://...
 
+import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { parseArgs } from "node:util";
 import { connect, findCounterparty } from "./db.ts";
@@ -24,6 +25,7 @@ const { values: args } = parseArgs({
     "database-url": { type: "string", default: process.env.DATABASE_URL },
     "database-driver": { type: "string", default: "pg" },
     "database-ca-file": { type: "string" },
+    "database-ca": { type: "string" },
     "insecure-database": { type: "boolean", default: false },
   },
 });
@@ -35,11 +37,24 @@ if (!args["database-url"]) {
   console.error("--database-url (or DATABASE_URL) is required");
   process.exit(2);
 }
+if (args["database-ca-file"] && args["database-ca"]) {
+  console.error("use --database-ca-file or --database-ca, not both");
+  process.exit(2);
+}
+
+// Only the pivot binary is copied into the enclave, so a CA file path cannot
+// resolve there. --database-ca carries the PEM itself, base64-encoded, which
+// fits in pivotArgs.
+const databaseCa = args["database-ca-file"]
+  ? readFileSync(args["database-ca-file"], "utf8")
+  : args["database-ca"]
+    ? Buffer.from(args["database-ca"], "base64").toString("utf8")
+    : undefined;
 
 const pool = connect({
   connectionString: args["database-url"],
   driver: args["database-driver"],
-  caFile: args["database-ca-file"],
+  ca: databaseCa,
   insecure: args["insecure-database"],
 });
 
