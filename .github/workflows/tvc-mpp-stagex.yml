@@ -1,0 +1,72 @@
+name: Build TVC MPP image
+
+on:
+  push:
+    branches: [main]
+    paths: ["tvc-mpp/**", ".github/workflows/tvc-mpp-stagex.yml", ".github/actions/docker-setup/**"]
+  pull_request:
+    paths: ["tvc-mpp/**", ".github/workflows/tvc-mpp-stagex.yml", ".github/actions/docker-setup/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Docker
+        uses: ./.github/actions/docker-setup
+        with:
+          dockerHub: ${{ secrets.DOCKERHUB_API_KEY }}
+      - name: Build reproducible Linux/amd64 image
+        working-directory: tvc-mpp
+        run: make image
+      - name: Load the OCI image
+        working-directory: tvc-mpp
+        run: tar -C out/tvc-mpp -cf - . | docker load
+      - name: Confirm the destination is private
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          if gh api "/orgs/${owner}/packages/container/tvc-mpp" --jq '.visibility' > /tmp/mpp-visibility 2> /tmp/mpp-package-error; then
+            test "$(cat /tmp/mpp-visibility)" = private
+          elif ! rg -q 'HTTP 404' /tmp/mpp-package-error; then
+            cat /tmp/mpp-package-error
+            exit 1
+          fi
+          # A newly created GHCR package defaults to private. Existing public
+          # packages are refused above before any image is pushed.
+      - name: Publish the private demo image
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          destination="ghcr.io/${owner}/tvc-mpp:sha-${GITHUB_SHA}"
+          echo "${GH_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+          docker tag tkhq-tvc-mpp/tvc-mpp:build "${destination}"
+          docker push "${destination}"
+          visibility=$(gh api "/orgs/${owner}/packages/container/tvc-mpp" --jq '.visibility')
+          test "${visibility}" = private
+          image=$(docker inspect --format='{{index .RepoDigests 0}}' "${destination}")
+          container=$(docker create "${destination}")
+          docker cp "${container}:/tvc_app" /tmp/tvc-mpp-binary
+          docker rm "${container}"
+          digest=$(sha256sum /tmp/tvc-mpp-binary | awk '{print $1}')
+          {
+            echo '## TVC MPP deployment details'
+            echo "- Private image: \`${image}\`"
+            echo '- Pivot: `/tvc_app`'
+            echo "- Binary SHA-256: \`${digest}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

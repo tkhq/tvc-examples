@@ -1,0 +1,6 @@
+/target/
+/out/
+/.local/
+/.env
+/.env.*
+!/.env.example
