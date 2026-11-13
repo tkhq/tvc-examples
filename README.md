@@ -11,6 +11,7 @@ This repository is a **monorepo**. Each example is a self-contained project in i
 - [tvc-github-broker](tvc-github-broker/README.md): Broker narrowed GitHub App installation tokens, gated by Turnkey-minted request-bound JWTs.
 - [tvc-oracle](tvc-oracle/README.md): Publish verified, signed ETH/USD observations to Ethereum Sepolia.
 - [tvc-policy-sidecar](tvc-policy-sidecar/README.md): Verify Turnkey activity webhooks and vote on signing requests of chains without parsing-support.
+- [tvc-mpp](tvc-mpp/README.md): Run an OAuth-protected synthetic computation in TVC and return an App Proof for an MPP gateway.
 
 ## Getting the code
 

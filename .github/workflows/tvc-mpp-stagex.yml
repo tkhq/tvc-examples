@@ -1,0 +1,47 @@
+name: Build TVC MPP image
+
+on:
+  push:
+    branches: [main]
+    paths: ["tvc-mpp/**", ".github/workflows/tvc-mpp-stagex.yml", ".github/actions/docker-setup/**"]
+  pull_request:
+    paths: ["tvc-mpp/**", ".github/workflows/tvc-mpp-stagex.yml", ".github/actions/docker-setup/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Docker
+        uses: ./.github/actions/docker-setup
+        with:
+          dockerHub: ${{ secrets.DOCKERHUB_API_KEY }}
+      - name: Build reproducible Linux/amd64 image
+        working-directory: tvc-mpp
+        run: make image
+      - name: Load the OCI image
+        working-directory: tvc-mpp
+        run: tar -C out/tvc-mpp -cf - . | docker load
+      - name: Check binary and record digest
+        run: |
+          docker run --rm tkhq-tvc-mpp/tvc-mpp:build --help
+          container=$(docker create tkhq-tvc-mpp/tvc-mpp:build)
+          docker cp "${container}:/tvc_app" /tmp/tvc-mpp-binary
+          docker rm "${container}"
+          digest=$(sha256sum /tmp/tvc-mpp-binary | awk '{print $1}')
+          {
+            echo '## TVC MPP build details'
+            echo '- Pivot: `/tvc_app`'
+            echo "- Binary SHA-256: \`${digest}\`"
+            echo '- Build validation only; no image is published.'
+          } >> "$GITHUB_STEP_SUMMARY"
