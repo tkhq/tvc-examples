@@ -6,6 +6,7 @@ This repository is a **monorepo**. Each example is a self-contained project in i
 
 ## Examples
 
+- [tvc-counterparty-check](tvc-counterparty-check/README.md): Check payout recipients against your own Postgres counterparty table and return a signed verdict. TypeScript on Node; start here.
 - [tvc-chainalysis](tvc-chainalysis/README.md): Sanctions screening with a TVC app and web frontend.
 - [tvc-cosign](tvc-cosign/README.md): Classify EVM transactions and stamp Turnkey requests.
 - [tvc-github-broker](tvc-github-broker/README.md): Broker narrowed GitHub App installation tokens, gated by Turnkey-minted request-bound JWTs.
